@@ -1,0 +1,228 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  /* Near-black navy base */
+  --bg-base: #020612;
+  
+  /* Elevated navy-charcoal glass surfaces */
+  --bg-surface: rgba(15, 23, 42, 0.7);
+  --bg-surface-elevated: rgba(30, 41, 59, 0.8);
+  
+  /* Floodlight Amber (sole primary accent) */
+  --primary-accent: #fbbf24;
+  
+  /* Pitch Green (success/stable states) */
+  --secondary-accent: #10b981;
+  
+  /* Alert Red */
+  --alert-accent: #ef4444;
+  
+  /* Text values matching contrast rules */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  
+  /* Translucent amber border */
+  --border-color: rgba(251, 191, 36, 0.15);
+  
+  /* Typography fallbacks */
+  --font-family-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-family-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Tahoma', sans-serif;
+}
+
+/* Accessibility / High Contrast + Low-Stimulation mode
+   §9: This is a DISTINCT theme mode — not just "turn up contrast" but also:
+   - Reduced animation density (all transitions and animations disabled)
+   - Simplified visual hierarchy (no blur, no glows, no grain texture)
+   - Stark borders replace translucent glass for clear visual boundaries
+   Targets both vision-impaired AND neurodivergent/migraine-sensitive users.
+*/
+.high-contrast {
+  --bg-base: #000000;
+  --bg-surface: #000000;
+  --bg-surface-elevated: #111111;
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --primary-accent: #ffff00; /* pure yellow — 21:1 contrast on black */
+  --secondary-accent: #00ff00; /* pure green */
+  --alert-accent: #ff4444; /* bright red, still readable */
+  --border-color: #ffffff; /* stark solid borders */
+}
+
+/* §9: Disable all motion and blur in high-contrast/low-stimulation mode */
+.high-contrast * {
+  animation: none !important;
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* §9: Simplify visual hierarchy — remove glassmorphism decorative layers */
+.high-contrast .glass-panel {
+  background-color: #111111 !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 4px !important;
+}
+
+.high-contrast .glass-panel:hover {
+  border-color: #ffff00 !important;
+}
+
+/* §9: Remove grain texture in high-contrast mode */
+.high-contrast body {
+  background-image: none !important;
+}
+
+/* §9: Flatten floodlight loading into a solid border pulse — no sweep animation */
+.high-contrast .floodlight-sweep {
+  background: #111111 !important;
+  border: 2px solid #ffff00 !important;
+  animation: none !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-family-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+  
+  /* Background Grain Texture Overlay */
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(251, 191, 36, 0.05) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E");
+}
+
+a {
+  color: var(--primary-accent);
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+a:hover {
+  color: #f59e0b;
+}
+
+/* §9 WCAG 2.2: Visible focus indicator — 3px solid, guaranteed visible on all backgrounds */
+:focus-visible {
+  outline: 3px solid var(--primary-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* §9: Screen reader only — visually hidden but announced by assistive tech */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-family-sans);
+}
+
+/* Glassmorphism utility class */
+.glass-panel {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(12px);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: transform 150ms ease, border-color 200ms ease;
+}
+
+.glass-panel:hover {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+/* Active value amber glow */
+.numeric-glow {
+  text-shadow: 0 0 12px rgba(251, 191, 36, 0.5);
+  font-family: var(--font-family-display);
+}
+
+.green-glow {
+  text-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+.red-glow {
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+/* Faint Pitch marking dividers */
+.pitch-divider {
+  border: 0;
+  height: 1px;
+  background-image: linear-gradient(to right, transparent, rgba(16, 185, 129, 0.3) 50%, transparent);
+  margin: 24px 0;
+}
+
+/* Concierge "floodlight sweep" animation */
+@keyframes floodlightSweep {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.floodlight-sweep {
+  background: linear-gradient(90deg, var(--bg-surface-elevated), rgba(251, 191, 36, 0.25), var(--bg-surface-elevated));
+  background-size: 200% 200%;
+  animation: floodlightSweep 2s ease infinite;
+}
+
+/* ----------------------------------------------------
+   Global Spacing Rhythm & Spacing Utilities (8px Grid)
+   ---------------------------------------------------- */
+.spacing-xs { margin-bottom: 4px; }
+.spacing-sm { margin-bottom: 8px; }
+.spacing-md { margin-bottom: 16px; }
+.spacing-lg { margin-bottom: 24px; }
+.spacing-xl { margin-bottom: 32px; }
+.spacing-xxl { margin-bottom: 48px; }
+
+/* Global layout alignment styling */
+.display-title {
+  font-family: var(--font-family-display);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: var(--text-primary);
+}
+
+/* ----------------------------------------------------
+   Reduced Motion Global Override
+   ---------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+  .floodlight-sweep {
+    background: var(--bg-surface-elevated);
+    box-shadow: 0 0 10px var(--primary-accent);
+    animation: none !important;
+  }
+}

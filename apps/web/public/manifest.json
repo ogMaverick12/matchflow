@@ -1,0 +1,49 @@
+{
+  "name": "Matchflow — FIFA World Cup 2026",
+  "short_name": "Matchflow",
+  "description": "One flow engine. Every gate, every language, every decision. AI crowd-intelligence for FIFA World Cup 2026 venues.",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#fbbf24",
+  "orientation": "portrait-primary",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["navigation", "sports", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Ask AI Concierge",
+      "short_name": "Ask AI",
+      "description": "Get instant wayfinding help",
+      "url": "/chat",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Live Crowd Map",
+      "short_name": "Map",
+      "description": "See live congestion by zone",
+      "url": "/map",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Exit Planner",
+      "short_name": "Exit",
+      "description": "Post-match transit and egress routing",
+      "url": "/exit",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

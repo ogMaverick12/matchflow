@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return isAuthenticated() && request.auth.token.role != null ? request.auth.token.role : 'fan';
+    }
+
+    function isRole(role) {
+      return getUserRole() == role;
+    }
+
+    function isStaffOrOrganizer() {
+      return isRole('staff') || isRole('organizer');
+    }
+
+    // 1. Sessions Collection
+    match /sessions/{sessionId} {
+      // Ephemeral fan session: only readable/writeable by the session owner
+      allow read, write: if isAuthenticated() && request.auth.uid == sessionId;
+    }
+
+    // 2. Reports Collection
+    match /reports/{reportId} {
+      // Create/write: Anyone with volunteer, staff, or organizer role can create reports
+      allow create: if isAuthenticated() && (isRole('volunteer') || isStaffOrOrganizer());
+      
+      // Update/delete: Only staff or organizer
+      allow update, delete: if isAuthenticated() && isStaffOrOrganizer();
+
+      // Read: Staff/Organizer can read all. Volunteer can only read their own reports.
+      allow read: if isAuthenticated() && (
+        isStaffOrOrganizer() || 
+        (isRole('volunteer') && resource.data.authorId == request.auth.uid)
+      );
+    }
+
+    // 3. Incidents Collection
+    // §12: Staff/Organizers can read/write incidents for operational management.
+    // DELETE is restricted to organizer-only to preserve incident history.
+    match /incidents/{incidentId} {
+      allow read, create, update: if isAuthenticated() && isStaffOrOrganizer();
+      allow delete: if isAuthenticated() && isRole('organizer');
+    }
+
+    // 4. Dispatches Collection
+    // §12: Audit trail is append-only (immutable within a session).
+    // Staff and Organizers can READ and CREATE dispatch records.
+    // UPDATE and DELETE are blocked entirely — the audit log is never modified
+    // after creation. A dispatch status change creates a new record, it does not
+    // overwrite the original.
+    match /dispatches/{dispatchId} {
+      allow read: if isAuthenticated() && isStaffOrOrganizer();
+      allow create: if isAuthenticated() && isStaffOrOrganizer();
+      // update and delete intentionally omitted — dispatches are immutable audit records
+    }
+
+    // 5. Concourse Graph (Static Map Nodes/Edges)
+    match /concourseGraph/{document=**} {
+      // Publicly readable by fans/volunteers/staff/organizers
+      allow read: if true;
+      // Only writable by organizers
+      allow write: if isAuthenticated() && isRole('organizer');
+    }
+
+    // 6. Congestion State (Simulated density data)
+    match /congestionState/{document=**} {
+      // Publicly readable by everyone
+      allow read: if true;
+      // Only writable by organizers (or backend system)
+      allow write: if isAuthenticated() && isRole('organizer');
+    }
+  }
+}

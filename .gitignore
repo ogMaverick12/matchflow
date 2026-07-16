@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+/npm-debug.log*
+
+# Next.js build output
+.next/
+out/
+
+# TypeScript build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Firebase files
+.firebase/
+*-debug.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Environment variables & secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# Test reports
+playwright-report/
+test-results/
+test-report/
+.nyc_output/
+coverage/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE configuration
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

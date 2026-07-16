@@ -1,0 +1,203 @@
+name: MatchFlow CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Node version locked to match local dev environment
+  NODE_VERSION: '20'
+  # Emulator host for Firestore integration tests
+  FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080'
+  GCLOUD_PROJECT: 'matchflow-demo'
+  # Placeholder — real key never committed; golden-set uses mock
+  GEMINI_API_KEY: 'ci_mock_key'
+
+jobs:
+  # ──────────────────────────────────────────
+  # Stage 1: Lint
+  # ──────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run ESLint across all workspaces
+        run: npm run lint --workspaces --if-present
+
+  # ──────────────────────────────────────────
+  # Stage 2: Type-check
+  # ──────────────────────────────────────────
+  type-check:
+    name: Type-check
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Type-check all workspaces
+        run: npm run build --workspaces --if-present
+
+  # ──────────────────────────────────────────
+  # Stage 3: Unit Tests (P0 — fully deterministic)
+  # ──────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: type-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run concourse-graph unit tests (P0)
+        run: npx tsx test/unit/concourse-graph.test.ts
+      - name: Run flow-engine unit tests (P0)
+        run: npx tsx test/unit/flow-engine.test.ts
+
+  # ──────────────────────────────────────────
+  # Stage 4: Integration Tests (P1 + P2)
+  # ──────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Firestore security rules tests (P1)
+        run: npx tsx test/integration/security-rules.test.ts
+      - name: Run failure injection + fallback tests (P2)
+        run: npx tsx test/integration/failure-injection.test.ts
+
+  # ──────────────────────────────────────────
+  # Stage 5: Accessibility Scan (P4)
+  # ──────────────────────────────────────────
+  axe-scan:
+    name: Axe Accessibility Scan
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Build web app
+        run: npm run build -w apps/web
+      - name: Run axe accessibility scan
+        run: npx playwright test test/accessibility/axe-scan.test.ts
+        env:
+          WEB_BASE_URL: ''  # Let Playwright start Next.js dev server
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-axe-report
+          path: playwright-report/
+          retention-days: 30
+
+  # ──────────────────────────────────────────
+  # Stage 6: Golden-Set AI Regression (P3 — non-blocking in CI)
+  # ──────────────────────────────────────────
+  golden-set:
+    name: AI Golden-Set Regression (150 cases)
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    # Non-blocking: report results but don't gate the build
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run golden-set regression (all 5 languages, 150 queries)
+        run: npx tsx test/regression/golden-set.test.ts
+        env:
+          GEMINI_API_KEY: 'ci_mock_key'
+
+  # ──────────────────────────────────────────
+  # Stage 7: E2E Matchday Scenario (P5)
+  # ──────────────────────────────────────────
+  e2e:
+    name: E2E Matchday Scenario
+    runs-on: ubuntu-latest
+    needs: axe-scan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run matchday E2E scenario
+        run: npx playwright test test/e2e/matchday-scenario.test.ts
+        env:
+          WEB_BASE_URL: ''  # Let Playwright start Next.js dev server
+      - name: Upload E2E report and videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
+
+  # ──────────────────────────────────────────
+  # Stage 8: Production Build Validation
+  # ──────────────────────────────────────────
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    needs: [axe-scan, e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build all workspaces
+        run: npm run build --workspaces --if-present
+      - name: Verify functions build output exists
+        run: test -d apps/functions/lib
+      - name: Verify web build output exists
+        run: test -d apps/web/.next
