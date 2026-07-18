@@ -9,7 +9,7 @@ out/
 # TypeScript build outputs
 dist/
 build/
-lib/
+apps/functions/lib/
 *.tsbuildinfo
 
 # Firebase files
