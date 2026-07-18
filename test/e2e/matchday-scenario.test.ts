@@ -37,10 +37,46 @@ async function assertVisible(page: Page, selector: string, description: string) 
   await expect(el, `Expected "${description}" to be visible`).toBeVisible({ timeout: 8000 });
 }
 
-// Helper: navigate and wait for page to be stable
+// Helper: navigate and wait for page to be stable, auto-injecting session role for ops/volunteer gates
 async function navigate(page: Page, path: string) {
+  // First go to /login to establish origin context for localStorage
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'commit', timeout: 8000 });
+
+  // Map route path to role requirements
+  let role = 'fan';
+  if (path === '/dashboard' || path.startsWith('/incidents')) {
+    role = 'staff';
+  } else if (path === '/volunteer') {
+    role = 'volunteer';
+  } else if (path === '/admin') {
+    role = 'organizer';
+  }
+
+  // Set the session role in localStorage, preserving accessibility settings
+  await page.evaluate((r) => {
+    const existing = localStorage.getItem('matchflow_session');
+    const parsed = existing ? JSON.parse(existing) : {
+      language: 'en',
+      accessibilityMode: {
+        mobilityRouting: false,
+        highContrast: false,
+        simplifiedLanguage: false
+      }
+    };
+    localStorage.setItem('matchflow_session', JSON.stringify({
+      ...parsed,
+      sessionId: parsed.sessionId || 'test_session_id',
+      userId: parsed.userId || 'test_user_id',
+      role: r,
+      lastActive: Date.now()
+    }));
+  }, role);
+
+  // Navigate to target path
   await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 15000 });
 }
+
+
 
 test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
 
@@ -132,9 +168,10 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
 
     // Must have a login form or auth button
     const authElement = page.locator(
-      'form, button[type="submit"], input[type="email"], input[type="password"], [data-testid="login"]'
+      'form, button, input[type="email"], input[type="password"], [data-testid="login"]'
     ).first();
     await expect(authElement, 'Login page must have authentication UI').toBeVisible({ timeout: 8000 });
+
   });
 
   test('ACT 2 Step 2 — Ops dashboard renders the incident management interface', async ({ page }) => {

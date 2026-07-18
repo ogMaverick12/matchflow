@@ -38,6 +38,51 @@ async function analyzeWithAxe(page: Page, pageName: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Navigation & Role Configuration Helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
+
+async function navigate(page: Page, path: string) {
+  // First go to /login to establish origin context for localStorage
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'commit', timeout: 8000 });
+
+  // Map route path to role requirements
+  let role = 'fan';
+  if (path === '/dashboard' || path.startsWith('/incidents')) {
+    role = 'staff';
+  } else if (path === '/volunteer') {
+    role = 'volunteer';
+  } else if (path === '/admin') {
+    role = 'organizer';
+  }
+
+  // Set the session role in localStorage, preserving accessibility settings
+  await page.evaluate((r) => {
+    const existing = localStorage.getItem('matchflow_session');
+    const parsed = existing ? JSON.parse(existing) : {
+      language: 'en',
+      accessibilityMode: {
+        mobilityRouting: false,
+        highContrast: false,
+        simplifiedLanguage: false
+      }
+    };
+    localStorage.setItem('matchflow_session', JSON.stringify({
+      ...parsed,
+      sessionId: parsed.sessionId || 'test_session_id',
+      userId: parsed.userId || 'test_user_id',
+      role: r,
+      lastActive: Date.now()
+    }));
+  }, role);
+
+  // Navigate to target path
+  await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 15000 });
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 1. axe-core — All 12 Screens
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -63,7 +108,7 @@ const OPS_PAGES = [
 test.describe('§9 — axe-core: Fan surface (WCAG 2.2 AA)', () => {
   for (const { path, name } of FAN_PAGES) {
     test(`Zero axe violations: ${name} (${path})`, async ({ page }) => {
-      await page.goto(path);
+      await navigate(page, path);
       // Wait for hydration
       await page.waitForLoadState('networkidle');
 
@@ -76,7 +121,7 @@ test.describe('§9 — axe-core: Fan surface (WCAG 2.2 AA)', () => {
 test.describe('§9 — axe-core: Ops surface (WCAG 2.2 AA)', () => {
   for (const { path, name } of OPS_PAGES) {
     test(`Zero axe violations: ${name} (${path})`, async ({ page }) => {
-      await page.goto(path);
+      await navigate(page, path);
       await page.waitForLoadState('networkidle');
 
       const violations = await analyzeWithAxe(page, name);
@@ -85,6 +130,7 @@ test.describe('§9 — axe-core: Ops surface (WCAG 2.2 AA)', () => {
   }
 });
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Keyboard-Only Pass — Chat Interface
 // Focus on the two screens most likely to have keyboard traps: chat and volunteer.
@@ -92,8 +138,9 @@ test.describe('§9 — axe-core: Ops surface (WCAG 2.2 AA)', () => {
 
 test.describe('§9 — Keyboard-only pass', () => {
   test('Chat page: no keyboard trap, input and send button both reachable by Tab', async ({ page }) => {
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
+
 
     // Start focus at top of page
     await page.keyboard.press('Tab');
@@ -129,10 +176,15 @@ test.describe('§9 — Keyboard-only pass', () => {
     await page.locator('#concierge-query-input').focus();
     await page.keyboard.type('test query');
 
-    // Press Tab to reach send button
+    // Press Tab to reach send button (input -> mic -> send)
     await page.keyboard.press('Tab');
+    const labelAfterTab1 = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+    if (labelAfterTab1 && labelAfterTab1.includes('voice')) {
+      await page.keyboard.press('Tab'); // tab again if voice button is focused
+    }
     const activeAfterTab = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
     expect(activeAfterTab, 'Send button should be focused after Tab from input').toBe('Send message');
+
 
     // Press Enter to submit — verify no keyboard trap
     await page.keyboard.press('Enter');
@@ -142,8 +194,9 @@ test.describe('§9 — Keyboard-only pass', () => {
   });
 
   test('Volunteer page: category pills and textarea all keyboard-operable, no trap', async ({ page }) => {
-    await page.goto('/volunteer');
+    await navigate(page, '/volunteer');
     await page.waitForLoadState('networkidle');
+
 
     const focusedElements: string[] = [];
     for (let i = 0; i < 20; i++) {
@@ -273,7 +326,7 @@ test.describe('§9 — Accessible routing failure case (explicit NO_ACCESSIBLE_P
 
 test.describe('§9 — Screen reader semantics', () => {
   test('Chat page: send button has aria-label (not icon-only)', async ({ page }) => {
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
 
     const sendButton = page.locator('button[aria-label="Send message"]');
@@ -281,7 +334,7 @@ test.describe('§9 — Screen reader semantics', () => {
   });
 
   test('Chat page: message feed has role=log with aria-live=polite', async ({ page }) => {
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
 
     const log = page.locator('[role="log"][aria-live="polite"]');
@@ -289,17 +342,18 @@ test.describe('§9 — Screen reader semantics', () => {
   });
 
   test('Chat page: heading hierarchy starts at h1', async ({ page }) => {
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
 
     const h1 = page.locator('h1');
+
     await expect(h1, 'Chat page must have an h1').toHaveCount(1);
     const h1Text = await h1.textContent();
     expect(h1Text).toContain('Matchflow');
   });
 
   test('Accessibility Hub: all checkboxes have associated labels (no orphan inputs)', async ({ page }) => {
-    await page.goto('/accessibility');
+    await navigate(page, '/accessibility');
     await page.waitForLoadState('networkidle');
 
     // Each input must be findable by its label — if label association is broken, this will fail
@@ -313,7 +367,7 @@ test.describe('§9 — Screen reader semantics', () => {
   });
 
   test('Volunteer page: category group has role=group, textarea has explicit label', async ({ page }) => {
-    await page.goto('/volunteer');
+    await navigate(page, '/volunteer');
     await page.waitForLoadState('networkidle');
 
     const group = page.locator('[role="group"]');
@@ -324,10 +378,11 @@ test.describe('§9 — Screen reader semantics', () => {
   });
 
   test('Onboarding page: language selection has no heading level skip', async ({ page }) => {
-    await page.goto('/onboarding');
+    await navigate(page, '/onboarding');
     await page.waitForLoadState('networkidle');
 
     const h1 = page.locator('h1');
+
     await expect(h1, 'Onboarding must have exactly one h1').toHaveCount(1);
 
     // No h4/h5 without h2/h3 parent — simplified check: h3 must not appear without an h2 or h1 ancestor
@@ -356,28 +411,26 @@ test.describe('§9 — Screen reader semantics', () => {
 
 test.describe('§9 — High-contrast / low-stimulation mode', () => {
   test('Enabling high-contrast adds .high-contrast class that disables animations AND simplifies visual hierarchy', async ({ page }) => {
-    await page.goto('/accessibility');
+    await navigate(page, '/accessibility');
     await page.waitForLoadState('networkidle');
 
     // Enable high contrast
     await page.locator('#toggle-contrast').check();
 
     // Navigate to chat to verify the class is applied
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(200); // Ensure hydration has completed before class check
 
-    // Check that the .high-contrast class is on the body or root element
-    const hasHighContrastClass = await page.evaluate(() => {
-      return document.body.classList.contains('high-contrast') ||
-        document.documentElement.classList.contains('high-contrast');
-    });
-    // Note: Class application depends on SessionContext layout propagation.
-    // We verify the CSS rule exists and the axe scan still passes.
-    expect(
-      hasHighContrastClass,
-      '§9: .high-contrast class must be on <html> or <body> when high-contrast mode is enabled'
-    ).toBe(true);
+    // Verify the .high-contrast class appears on html or body
+    await expect(async () => {
+      const hasClass = await page.evaluate(() => {
+        return document.body.classList.contains('high-contrast') ||
+          document.documentElement.classList.contains('high-contrast');
+      });
+      expect(hasClass).toBe(true);
+    }).toPass({ timeout: 8000 });
+
 
     // Verify the CSS rule for motion reduction exists in the stylesheet
     const hasMotionRule = await page.evaluate(() => {
@@ -421,14 +474,14 @@ test.describe('§9 — High-contrast / low-stimulation mode', () => {
 
 test.describe('§9 — Accessibility Simplifier inline in chat', () => {
   test('Simplified language indicator appears inline without navigating away from chat', async ({ page }) => {
-    await page.goto('/accessibility');
+    await navigate(page, '/accessibility');
     await page.waitForLoadState('networkidle');
 
     // Enable simplified language
     await page.locator('#toggle-simplified').check();
 
     // Navigate to chat
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
 
     // The "SIMPLIFIED ENGLISH" label must be visible in the banner — inline, no navigation
@@ -446,7 +499,7 @@ test.describe('§9 — Accessibility Simplifier inline in chat', () => {
 
 test.describe('§9 — No voice-only features', () => {
   test('Chat responses appear as visible text (not audio-only) in the message log', async ({ page }) => {
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
 
     // Every bot response must be a visible text node — not hidden behind an audio element
@@ -465,8 +518,9 @@ test.describe('§9 — No voice-only features', () => {
 
 test.describe('§9 — Focus visible indicator', () => {
   test('Tab-focused elements have a visible focus ring defined in CSS', async ({ page }) => {
-    await page.goto('/chat');
+    await navigate(page, '/chat');
     await page.waitForLoadState('networkidle');
+
 
     // Check that :focus-visible CSS rule exists with an outline
     const hasFocusRule = await page.evaluate(() => {

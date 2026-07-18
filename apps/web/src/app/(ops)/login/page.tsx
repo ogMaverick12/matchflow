@@ -23,7 +23,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
+    <main style={{
       minHeight: '100vh',
       backgroundColor: 'var(--bg-base)',
       display: 'flex',
@@ -31,6 +31,7 @@ export default function LoginPage() {
       alignItems: 'center',
       padding: '24px',
     }}>
+
       <div className="glass-panel" style={{
         padding: '32px',
         maxWidth: '440px',
@@ -130,6 +131,7 @@ export default function LoginPage() {
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
+

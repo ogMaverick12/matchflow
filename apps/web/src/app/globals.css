@@ -48,7 +48,13 @@
   --border-color: #ffffff; /* stark solid borders */
 }
 
+.high-contrast {
+  animation: none;
+  backdrop-filter: none;
+}
+
 /* §9: Disable all motion and blur in high-contrast/low-stimulation mode */
+
 .high-contrast * {
   animation: none !important;
   transition: none !important;

@@ -22,7 +22,8 @@ interface ChatMessage {
 }
 
 
-export default function ChatPage() {
+function ChatContent() {
+
   const { session, simulateOffline } = useSession();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState('');
@@ -397,7 +398,7 @@ export default function ChatPage() {
                       }}
                     >
                       <Mic size={10} aria-hidden="true" color="var(--primary-accent)" />
-                      <span style={{ fontStyle: 'italic' }}>Voice: "{msg.voiceTranscript}"</span>
+                      <span style={{ fontStyle: 'italic' }}>Voice: &quot;{msg.voiceTranscript}&quot;</span>
                     </div>
                   )}
 
@@ -493,7 +494,7 @@ export default function ChatPage() {
             <span>Listening…</span>
             {voiceTranscript && (
               <span style={{ fontWeight: 'normal', color: 'var(--text-primary)', marginLeft: '8px' }}>
-                "{voiceTranscript}"
+                &quot;{voiceTranscript}&quot;
               </span>
             )}
           </div>
@@ -583,3 +584,16 @@ export default function ChatPage() {
     </div>
   );
 }
+
+export default function ChatPage() {
+  return (
+    <React.Suspense fallback={
+      <div style={{ padding: '24px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+        Loading concierge...
+      </div>
+    }>
+      <ChatContent />
+    </React.Suspense>
+  );
+}
+

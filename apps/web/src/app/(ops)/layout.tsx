@@ -49,7 +49,7 @@ export default function OpsLayout({
 
   if (!hasAccess) {
     return (
-      <div style={{
+      <main style={{
         minHeight: '100vh',
         backgroundColor: 'var(--bg-base)',
         color: 'var(--text-primary)',
@@ -60,6 +60,7 @@ export default function OpsLayout({
         padding: '24px',
         textAlign: 'center',
       }}>
+
         <div className="glass-panel" style={{
           padding: '40px 32px',
           maxWidth: '480px',
@@ -87,9 +88,10 @@ export default function OpsLayout({
             Switch Role / Log In
           </Link>
         </div>
-      </div>
+      </main>
     );
   }
+
 
   if (isLoginPage) {
     return <div className="ops-login-wrapper">{children}</div>;

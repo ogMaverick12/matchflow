@@ -8,8 +8,9 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @matchflow/types && npm run build -w @matchflow/concourse-graph && npm run build -w @matchflow/ui && npm run build -w @matchflow/flow-engine && npm run build -w @matchflow/web && npm run build -w @matchflow/functions --if-present",
     "start": "npm run start --workspaces --if-present",
+
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },

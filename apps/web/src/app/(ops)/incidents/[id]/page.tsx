@@ -319,8 +319,9 @@ export default function IncidentDetailPage() {
                   </span>
                 </div>
                 <p style={{ margin: 0, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                  "{rep.description}"
+                  &quot;{rep.description}&quot;
                 </p>
+
               </div>
             ))}
           </div>

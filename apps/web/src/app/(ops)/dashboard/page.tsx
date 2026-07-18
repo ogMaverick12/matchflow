@@ -294,8 +294,9 @@ export default function DashboardPage() {
           Security Check: Prove Firestore Gating
         </h4>
         <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          This triggers a mock cross-role query, making a direct call to the reports collection using credentials with the 'fan' role. The database rules must block this read.
+          This triggers a mock cross-role query, making a direct call to the reports collection using credentials with the &apos;fan&apos; role. The database rules must block this read.
         </p>
+
         <button
           onClick={verifyCrossRoleRead}
           disabled={verifying}

@@ -62,8 +62,9 @@ export default function SustainabilityPage() {
         </p>
         <button style={{
           backgroundColor: 'var(--secondary-accent)',
-          color: '#ffffff',
+          color: '#000000',
           fontWeight: 'bold',
+
           padding: '10px 20px',
           borderRadius: '6px',
           border: 'none',
