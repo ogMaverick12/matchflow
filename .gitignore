@@ -33,6 +33,12 @@ test-report/
 .nyc_output/
 coverage/
 
+# Firebase service-account credentials (NEVER commit)
+apps/functions/service-account.json
+**/service-account.json
+.firebase/
+
+
 # OS metadata
 .DS_Store
 Thumbs.db

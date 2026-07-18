@@ -45,8 +45,11 @@ function checkRateLimit(sessionId) {
 // Fast tier:             high-frequency, latency-critical (fan concierge, simplifier)
 // Higher-capability tier: lower-frequency, quality-critical (incident summarization, dispatch advisor)
 // ----------------------------------------------------
-const MODEL_FAST = 'gemini-3.5-flash'; // askConcierge, simplifyText
-const MODEL_HIGH_CAP = 'gemini-3.5-pro'; // summarizeIncident, suggestDispatch
+// Uses the "gemini-flash-latest" rolling alias so the app never breaks when a
+// specific model version is sunset. Both tiers unified to one flash model for
+// stability (per deployment decision). Points at current stable Gemini Flash.
+const MODEL_FAST = 'gemini-flash-latest'; // askConcierge, simplifyText, rankEgressOptions
+const MODEL_HIGH_CAP = 'gemini-flash-latest'; // summarizeIncident, suggestDispatch
 // §13: Hard client-side timeouts — deterministic fallback fires when exceeded.
 // Re-verified after every new code path to ensure no Gemini call is unguarded.
 const TIMEOUT_CONCIERGE_MS = 4_000; // fan is actively waiting — tightest budget
@@ -161,7 +164,7 @@ async function executeTool(name, args, zoneCongestion) {
     throw new Error(`Unknown tool: ${name}`);
 }
 // ----------------------------------------------------
-// 1. askConcierge — Fast tier (gemini-2.5-flash)
+// 1. askConcierge — Fast tier (gemini-flash-latest)
 // §13: Latency-critical, high-frequency fan surface.
 // §13: Hard 4-second timeout → deterministic fallback.
 // ----------------------------------------------------
@@ -210,7 +213,7 @@ exports.askConcierge = (0, https_1.onCall)(async (request) => {
         return runFallback(!genAI ? 'No Gemini API key defined' : 'Forced timeout simulation');
     }
     try {
-        // §13: MODEL_FAST (gemini-2.5-flash) — latency-critical fan surface
+        // §13: MODEL_FAST (gemini-flash-latest) — latency-critical fan surface
         const geminiCall = async () => {
             const model = genAI.getGenerativeModel({
                 model: MODEL_FAST,
@@ -285,7 +288,7 @@ async function flushBatch() {
         const chunk = batch.slice(i, i + MAX_BATCH_SIZE);
         let summaries;
         if (genAI) {
-            // §13: MODEL_HIGH_CAP (gemini-2.5-pro) — quality-critical ops path
+            // §13: MODEL_HIGH_CAP (gemini-flash-latest) — quality-critical ops path
             const getSummariesFromGemini = async () => {
                 exports._geminiSummarizeCallCount++;
                 const model = genAI.getGenerativeModel({
@@ -419,7 +422,7 @@ exports.summarizeIncident = (0, firestore_1.onDocumentCreated)('reports/{reportI
     });
 });
 // ----------------------------------------------------
-// 3. suggestDispatch — Higher-capability tier (gemini-2.5-pro)
+// 3. suggestDispatch — Higher-capability tier (gemini-flash-latest)
 // §13: Quality of dispatch ranking matters more than speed.
 // §13: Hard 5-second timeout → deterministic rankDispatches fallback.
 // ----------------------------------------------------
@@ -443,7 +446,7 @@ exports.suggestDispatch = (0, https_1.onCall)(async (request) => {
     const genAI = getGenAI();
     if (genAI) {
         try {
-            // §13: MODEL_HIGH_CAP (gemini-2.5-pro) — ops dispatch quality matters more than speed
+            // §13: MODEL_HIGH_CAP (gemini-flash-latest) — ops dispatch quality matters more than speed
             const model = genAI.getGenerativeModel({
                 model: MODEL_HIGH_CAP,
                 generationConfig: { responseMimeType: 'application/json' },
@@ -479,7 +482,7 @@ Roster list: ${JSON.stringify(data.roster)}`;
     return { success: true, data: { suggestions } };
 });
 // ----------------------------------------------------
-// 4. simplifyText — Fast tier (gemini-2.5-flash)
+// 4. simplifyText — Fast tier (gemini-flash-latest)
 // §13: High-frequency, best-effort — fast tier appropriate.
 // §13: Hard 3-second timeout → return originalText unchanged.
 // ----------------------------------------------------
@@ -494,7 +497,7 @@ exports.simplifyText = (0, https_1.onCall)(async (request) => {
     const originalEntities = originalText.match(entityRegex) || [];
     if (genAI) {
         try {
-            // §13: MODEL_FAST (gemini-2.5-flash) — best-effort accessibility aid
+            // §13: MODEL_FAST (gemini-flash-latest) — best-effort accessibility aid
             const model = genAI.getGenerativeModel({
                 model: MODEL_FAST,
                 systemInstruction: `You are an accessibility simplifier bot. Rewrite the user input text to make it extremely easy to read.
