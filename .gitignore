@@ -9,6 +9,7 @@ out/
 # TypeScript build outputs
 dist/
 build/
+lib/
 *.tsbuildinfo
 
 # Firebase files
@@ -37,7 +38,18 @@ coverage/
 apps/functions/service-account.json
 **/service-account.json
 
+# Personal / operational artifacts — not part of the project source submission
+# (master build doc is a working spec, not shipped code; deploys are run by hand)
+matchflow-master-build-document.md
+apps/functions/DEPLOY.md
+apps/functions/test-backend.js
 
+# Firebase local emulator runtime state
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*-debug.log
 
 # OS metadata
 .DS_Store
