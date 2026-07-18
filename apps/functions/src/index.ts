@@ -692,3 +692,27 @@ Do NOT output anything outside valid JSON.`
   };
 });
 
+// ----------------------------------------------------
+// setUserRole — assigns the matchflow role as a Firebase custom claim.
+// The Firestore security rules read request.auth.token.role, so this is what
+// makes RBAC (§12) actually enforced server-side. For the demo, any signed-in
+// user may set their own role (seeded personas). In production this would be
+// organizer-gated / provisioned out-of-band.
+// ----------------------------------------------------
+export const setUserRole = onCall<{ role: 'fan' | 'volunteer' | 'staff' | 'organizer' }, Promise<{ success: boolean; error?: { code: string; message: string } }>>(async (request) => {
+  const role = request.data?.role;
+  if (!role || !['fan', 'volunteer', 'staff', 'organizer'].includes(role)) {
+    return { success: false, error: { code: 'invalid-argument', message: 'Invalid role.' } };
+  }
+  const uid = request.auth?.uid;
+  if (!uid) {
+    return { success: false, error: { code: 'unauthenticated', message: 'Sign in required.' } };
+  }
+  try {
+    await admin.auth().setCustomUserClaims(uid, { role });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: { code: 'internal', message: err.message } };
+  }
+});
+

@@ -6,26 +6,26 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-
     "lint": "next lint"
   },
   "dependencies": {
+    "@matchflow/concourse-graph": "*",
+    "@matchflow/flow-engine": "*",
+    "@matchflow/types": "*",
+    "@matchflow/ui": "*",
+    "firebase": "^10.14.1",
+    "lucide-react": "^0.400.0",
     "next": "^14.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@matchflow/types": "*",
-    "@matchflow/concourse-graph": "*",
-    "@matchflow/flow-engine": "*",
-    "@matchflow/ui": "*",
-    "lucide-react": "^0.400.0",
     "swr": "^2.2.5"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "eslint": "^8.0.0",
-    "eslint-config-next": "^14.2.3"
+    "eslint-config-next": "^14.2.3",
+    "typescript": "^5.0.0"
   }
 }

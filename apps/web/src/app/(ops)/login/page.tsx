@@ -1,24 +1,50 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Shield } from 'lucide-react';
+import { httpsCallable } from 'firebase/functions';
+import { getFirebaseFunctions, getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+
+type Role = 'fan' | 'volunteer' | 'staff' | 'organizer';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { session, setRole } = useSession();
+  const { session, setRole, authUser } = useSession();
+  const [busy, setBusy] = useState(false);
 
-  const handleRoleSelect = (role: 'fan' | 'volunteer' | 'staff' | 'organizer') => {
+  const routeFor = (role: Role) => {
+    if (role === 'volunteer') router.push('/volunteer');
+    else if (role === 'staff') router.push('/dashboard');
+    else if (role === 'organizer') router.push('/admin');
+    else router.push('/home');
+  };
+
+  const handleRoleSelect = async (role: Role) => {
     setRole(role);
     if (role === 'fan') {
       router.push('/home');
-    } else if (role === 'volunteer') {
-      router.push('/volunteer');
-    } else if (role === 'staff') {
-      router.push('/dashboard');
-    } else if (role === 'organizer') {
-      router.push('/admin');
+      return;
+    }
+
+    // Ops roles: assign the role as a Firebase custom claim so Firestore
+    // security rules enforce RBAC server-side (§12). Fan needs no claim.
+    if (!isFirebaseConfigured() || !authUser) {
+      routeFor(role);
+      return;
+    }
+    setBusy(true);
+    try {
+      const fn = httpsCallable(getFirebaseFunctions(), 'setUserRole');
+      await fn({ role });
+      // Refresh the ID token so the new claim is visible to rules immediately
+      await authUser.getIdToken(true);
+    } catch {
+      // Claim may still apply on next token refresh; proceed regardless
+    } finally {
+      setBusy(false);
+      routeFor(role);
     }
   };
 
@@ -49,6 +75,7 @@ export default function LoginPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button
+            disabled={busy}
             onClick={() => handleRoleSelect('volunteer')}
             style={{
               padding: '14px',
@@ -70,6 +97,7 @@ export default function LoginPage() {
           </button>
 
           <button
+            disabled={busy}
             onClick={() => handleRoleSelect('staff')}
             style={{
               padding: '14px',
@@ -87,10 +115,11 @@ export default function LoginPage() {
             }}
           >
             <span>Staff Console (Priya)</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Incident feed & dispatches</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Incident feed &amp; dispatches</span>
           </button>
 
           <button
+            disabled={busy}
             onClick={() => handleRoleSelect('organizer')}
             style={{
               padding: '14px',
@@ -108,12 +137,13 @@ export default function LoginPage() {
             }}
           >
             <span>Organizer Portal (Marcus)</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Roster allocation & admin</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Roster allocation &amp; admin</span>
           </button>
 
           <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '12px 0' }}></div>
 
           <button
+            disabled={busy}
             onClick={() => handleRoleSelect('fan')}
             style={{
               padding: '12px',
@@ -134,4 +164,3 @@ export default function LoginPage() {
     </main>
   );
 }
-

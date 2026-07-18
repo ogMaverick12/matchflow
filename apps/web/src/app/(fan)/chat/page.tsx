@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSession } from '@/context/SessionContext';
 import { useSearchParams } from 'next/navigation';
-import { askFlowEngine, ConciergeResponseData } from '@matchflow/flow-engine';
+import { ConciergeResponseData } from '@matchflow/flow-engine';
 import { RouteCard, Info, AlertCircle } from '@matchflow/ui';
-import { db, runSimulatorTick } from '@/lib/db';
+import { db, runSimulatorTick, askConcierge } from '@/lib/db';
 import { Send, User, Bot, Mic, MicOff } from 'lucide-react';
 import { logEvent, classifyQuery } from '@/lib/analytics';
 import { useVoiceInput } from './useVoiceInput';
@@ -127,7 +127,7 @@ function ChatContent() {
     }
 
     try {
-      const response = await askFlowEngine({
+      const response = await askConcierge({
         query: userText,
         sessionId: session.sessionId,
         userId: session.userId,

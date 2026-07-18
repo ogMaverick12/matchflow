@@ -122,6 +122,13 @@ const TICK_INTERVAL_MS = 8_000; // 8-second tick — matches §6 "fixed tick int
  * @param role — passed through to the DB write layer for Firestore security rules
  */
 export function startCongestionSimulation(role: UserRole): void {
+  // In production, congestion writes are organizer-only (firestore.rules).
+  // Only an organizer-driven session may run the simulation that publishes
+  // density scores; other roles simply consume the live Firestore feed.
+  if (role !== 'organizer') {
+    console.info('[CongestionSimulator] Skipped — only organizers publish congestion (role: ' + role + ')');
+    return;
+  }
   if (_tickIntervalId) return; // already running
   _startTime = Date.now();
   _seed = 42; // reset seed for reproducibility

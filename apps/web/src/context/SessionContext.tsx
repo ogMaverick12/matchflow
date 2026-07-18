@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole, Session } from '@matchflow/types';
+import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
 
 interface SessionContextType {
   session: Session;
@@ -11,9 +13,23 @@ interface SessionContextType {
   simulateOffline: boolean;
   setSimulateOffline: (offline: boolean) => void;
   loading: boolean;
+  authUser: User | null;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
+
+const DEFAULT_SESSION = (uid: string): Session => ({
+  sessionId: uid,
+  userId: uid,
+  role: 'fan',
+  language: 'en',
+  accessibilityMode: {
+    mobilityRouting: false,
+    highContrast: false,
+    simplifiedLanguage: false
+  },
+  lastActive: Date.now()
+});
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session>({
@@ -31,30 +47,63 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [simulateOffline, setSimulateOffline] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<User | null>(null);
 
-  // Initialize Anonymous Session
+  // Initialize Anonymous Session via Firebase Auth
   useEffect(() => {
-    const savedSession = localStorage.getItem('matchflow_session');
-    if (savedSession) {
-      setSession(JSON.parse(savedSession));
-    } else {
-      const anonymousUid = 'fan_' + Math.random().toString(36).substr(2, 9);
-      const newSession: Session = {
-        sessionId: anonymousUid,
-        userId: anonymousUid,
-        role: 'fan',
-        language: 'en',
-        accessibilityMode: {
-          mobilityRouting: false,
-          highContrast: false,
-          simplifiedLanguage: false
-        },
-        lastActive: Date.now()
-      };
-      setSession(newSession);
-      localStorage.setItem('matchflow_session', JSON.stringify(newSession));
+    const saved = localStorage.getItem('matchflow_session');
+    const applySaved = (uid: string) => {
+      if (saved) {
+        const parsed = JSON.parse(saved) as Session;
+        // Preserve any role set from a custom claim if present
+        setSession({ ...parsed, sessionId: uid, userId: uid });
+      } else {
+        const s = DEFAULT_SESSION(uid);
+        localStorage.setItem('matchflow_session', JSON.stringify(s));
+        setSession(s);
+      }
+    };
+
+    if (!isFirebaseConfigured()) {
+      // Offline / unconfigured — fall back to a local anonymous id
+      const uid = 'fan_' + Math.random().toString(36).substr(2, 9);
+      applySaved(uid);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    const auth = getFirebaseAuth();
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setAuthUser(user);
+        // Role may come from a Firebase custom claim (set by organizer)
+        const claimRole = (user as any).getIdTokenResult
+          ? (await user.getIdTokenResult()).claims?.role as UserRole | undefined
+          : undefined;
+        const uid = user.uid;
+        if (claimRole) {
+          const merged = { ...DEFAULT_SESSION(uid), role: claimRole };
+          localStorage.setItem('matchflow_session', JSON.stringify(merged));
+          setSession(merged);
+        } else {
+          applySaved(uid);
+        }
+        setLoading(false);
+      } else {
+        // Sign in anonymously for fans by default
+        try {
+          const cred = await signInAnonymously(auth);
+          const uid = cred.user.uid;
+          applySaved(uid);
+          setLoading(false);
+        } catch {
+          const uid = 'fan_' + Math.random().toString(36).substr(2, 9);
+          applySaved(uid);
+          setLoading(false);
+        }
+      }
+    });
+    return unsub;
   }, []);
 
   const updateSession = (updater: (prev: Session) => Session) => {
@@ -112,7 +161,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setAccessibilityMode,
       simulateOffline,
       setSimulateOffline,
-      loading
+      loading,
+      authUser
     }}>
       {children}
     </SessionContext.Provider>

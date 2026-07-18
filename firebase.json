@@ -3,6 +3,11 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": {
+    "source": "apps/functions",
+    "runtime": "nodejs20",
+    "region": "us-central1"
+  },
   "emulators": {
     "auth": {
       "port": 9099

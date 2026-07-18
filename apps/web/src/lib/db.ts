@@ -1,62 +1,48 @@
-import { UserRole, CongestionZone, Incident, Report, Dispatch, Session } from '@matchflow/types';
+'use client';
 
-// In-Memory Simulated Database State
-let mockZones: CongestionZone[] = [
-  { zoneId: 'Zone_A', name: 'Zone A (North East)', level: '100', densityScore: 0.25, lastUpdated: Date.now(), trend: 'stable' },
-  { zoneId: 'Zone_B', name: 'Zone B (South East)', level: '100', densityScore: 0.35, lastUpdated: Date.now(), trend: 'stable' },
-  { zoneId: 'Zone_C', name: 'Zone C (South West)', level: '100', densityScore: 0.15, lastUpdated: Date.now(), trend: 'stable' },
-  { zoneId: 'Zone_D', name: 'Zone D (North West)', level: '100', densityScore: 0.20, lastUpdated: Date.now(), trend: 'stable' },
-];
+/**
+ * db.ts — Production data layer for MatchFlow.
+ *
+ * Replaces the in-browser mock with real Firebase Firestore listeners and
+ * Cloud Function callables. The public API surface is preserved so the page
+ * components do not need to change.
+ *
+ * Resilience: every backend call has a deterministic fallback:
+ *   - askConcierge falls back to the in-browser flow-engine if the callable
+ *     fails or is unreachable (§13 graceful degradation).
+ *   - congestion/reports/incidents/dispatches read from Firestore; if offline,
+ *     listeners simply do not fire (UI shows last-known / empty state).
+ *
+ * Security: client-side enforceRules mirrors the Firestore security rules so
+ * the UI can show "permission denied" states without a round-trip, but the
+ * server-side rules in firestore.rules remain the source of truth.
+ */
 
-let mockReports: Report[] = [
-  { id: 'rep_1', authorId: 'vol_1', authorName: 'Diego', authorRole: 'volunteer', category: 'crowd', description: 'Bottleneck forming at Gate 1 escalator', zoneId: 'Zone_A', level: '100', timestamp: Date.now() - 300000 },
-  { id: 'rep_2', authorId: 'vol_2', authorName: 'Jean', authorRole: 'volunteer', category: 'facility', description: 'Elevator North temporary out of service', zoneId: 'Zone_A', level: '100', timestamp: Date.now() - 150000 }
-];
+import { UserRole, CongestionZone, Incident, Report, Dispatch } from '@matchflow/types';
+import { doc, onSnapshot, collection, addDoc, updateDoc, query, orderBy, limit, where, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { getFirebaseDb, getFirebaseFunctions, isFirebaseConfigured } from './firebase';
+import { askFlowEngine, ConciergeResponseData, rankEgressOptions as localRankEgressOptions } from '@matchflow/flow-engine';
 
-// Starts empty — incidents are created in real time by db.createReport() when
-// fans interact with the concierge or volunteers submit field reports.
-// This preserves the "same live moment" narrative: the ops dashboard is blank
-// until actual fan activity drives the first incident. (§16 demo scenario)
-let mockIncidents: Incident[] = [];
-
-
-// Starts empty — dispatches are created by ops staff approving AI suggestions.
-// Nothing to dispatch until an incident exists. (§16 demo scenario)
-let mockDispatches: Dispatch[] = [];
-
-
-// Pub-Sub Event System for Real-time listeners
-type Listener = () => void;
-const listeners = new Set<Listener>();
-
-function notifyListeners() {
-  listeners.forEach(l => l());
-}
-
-// Security Rules Checker
-function enforceRules(role: UserRole, action: 'read' | 'write', collection: 'sessions' | 'reports' | 'incidents' | 'dispatches' | 'concourseGraph' | 'congestionState', documentAuthorId?: string) {
-  if (role === 'organizer') {
-    return; // Organizers have full read/write bypass
-  }
-
+// ---------------------------------------------------------------------------
+// Security Rules Checker (client-side mirror of firestore.rules)
+// ---------------------------------------------------------------------------
+function enforceRules(
+  role: UserRole,
+  action: 'read' | 'write',
+  collection: 'sessions' | 'reports' | 'incidents' | 'dispatches' | 'concourseGraph' | 'congestionState',
+  documentAuthorId?: string
+) {
+  if (role === 'organizer') return;
   if (collection === 'concourseGraph' || collection === 'congestionState') {
-    if (action === 'write') {
-      throw new Error(`Permission Denied: role ${role} cannot write to ${collection}`);
-    }
-    return; // anyone can read
+    if (action === 'write') throw new Error(`Permission Denied: role ${role} cannot write to ${collection}`);
+    return;
   }
-
-  if (collection === 'sessions') {
-    return; // handled per-session logic
-  }
-
+  if (collection === 'sessions') return;
   if (collection === 'incidents' || collection === 'dispatches') {
-    if (role === 'staff') {
-      return; // staff can read and write
-    }
-    throw new Error(`Permission Denied: role ${role} cannot access ${collection}. Insufficient permissions.`);
+    if (role === 'staff') return;
+    throw new Error(`Permission Denied: role ${role} cannot access ${collection}.`);
   }
-
   if (collection === 'reports') {
     if (action === 'write') {
       if (role === 'volunteer' || role === 'staff') return;
@@ -65,280 +51,286 @@ function enforceRules(role: UserRole, action: 'read' | 'write', collection: 'ses
     if (action === 'read') {
       if (role === 'staff') return;
       if (role === 'volunteer') {
-        if (documentAuthorId && documentAuthorId === 'me') return; // allowed to read own reports
-        throw new Error(`Permission Denied: volunteer role can only read their own reports.`);
+        if (documentAuthorId && documentAuthorId === 'me') return;
+        throw new Error('Permission Denied: volunteer can only read own reports.');
       }
       throw new Error(`Permission Denied: role ${role} cannot read reports.`);
     }
   }
 }
 
-// Bounded random-walk simulator execution
-export function runSimulatorTick() {
-  mockZones = mockZones.map(zone => {
-    const change = (Math.random() - 0.5) * 0.1; // small random walk
-    let newScore = Math.min(1.0, Math.max(0.0, zone.densityScore + change));
-    
-    // Non-degenerate boundaries (always clamp between 0.05 and 0.95 to keep interesting mock)
-    newScore = Math.min(0.95, Math.max(0.05, newScore));
-    
-    const trends: ('up' | 'down' | 'stable')[] = ['up', 'down', 'stable'];
-    const trend = change > 0.02 ? 'up' : change < -0.02 ? 'down' : 'stable';
-
-    return {
-      ...zone,
-      densityScore: parseFloat(newScore.toFixed(2)),
-      lastUpdated: Date.now(),
-      trend
-    };
-  });
-  notifyListeners();
+function handleError(err: unknown, onError?: (e: Error) => void) {
+  const e = err instanceof Error ? err : new Error(String(err));
+  if (onError) onError(e);
 }
 
-// API Exported Methods
-export const db = {
-  // Congestion State
-  subscribeToCongestion(role: UserRole, callback: (zones: CongestionZone[]) => void, onError?: (err: Error) => void) {
-    try {
-      enforceRules(role, 'read', 'congestionState');
-      callback([...mockZones]);
-      const listener = () => {
-        try {
-          callback([...mockZones]);
-        } catch (e) {
-          if (onError) onError(e as Error);
-        }
-      };
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    } catch (err) {
-      if (onError) onError(err as Error);
-      return () => {};
-    }
-  },
-
-  // Reports
-  subscribeToReports(role: UserRole, userId: string, callback: (reports: Report[]) => void, onError?: (err: Error) => void) {
-    try {
-      enforceRules(role, 'read', 'reports');
-      const filterReports = () => {
-        if (role === 'staff' || role === 'organizer') {
-          return [...mockReports];
-        } else if (role === 'volunteer') {
-          return mockReports.filter(r => r.authorId === userId);
-        }
-        return [];
-      };
-      callback(filterReports());
-      const listener = () => {
-        callback(filterReports());
-      };
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    } catch (err) {
-      if (onError) onError(err as Error);
-      return () => {};
-    }
-  },
-
-  // Simulating cross-role read (explicit check for volunteer reading all)
-  attemptCrossRoleRead(role: UserRole): Promise<Report[]> {
-    return new Promise((resolve, reject) => {
-      try {
-        enforceRules(role, 'read', 'reports', 'other_user'); // passing 'other_user' to trigger volunteer failure
-        resolve([...mockReports]);
-      } catch (err) {
-        reject(err);
-      }
-    });
-  },
-
-  createReport(role: UserRole, reportData: Omit<Report, 'id' | 'timestamp'>): Promise<Report> {
-    return new Promise((resolve, reject) => {
-      try {
-        enforceRules(role, 'write', 'reports');
-        const newReport: Report = {
-          ...reportData,
-          id: `rep_${Date.now()}`,
-          timestamp: Date.now()
-        };
-        mockReports.unshift(newReport);
-        
-        // Auto trigger incident grouping logic simulation
-        const isDuplicate = mockIncidents.some(inc => inc.zoneId === reportData.zoneId && inc.status === 'active');
-        if (!isDuplicate) {
-          const newIncident: Incident = {
-            id: `inc_${Date.now()}`,
-            sourceReportIds: [newReport.id],
-            summary: `Spike in ${reportData.zoneId}`,
-            description: reportData.description,
-            severity: 'low',
-            confidence: 0.9,
-            status: 'active',
-            zoneId: reportData.zoneId,
-            level: reportData.level,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          };
-          mockIncidents.unshift(newIncident);
-        } else {
-          // append to existing incident
-          const index = mockIncidents.findIndex(inc => inc.zoneId === reportData.zoneId && inc.status === 'active');
-          if (index !== -1) {
-            mockIncidents[index] = {
-              ...mockIncidents[index],
-              sourceReportIds: [...mockIncidents[index].sourceReportIds, newReport.id],
-              summary: `${mockIncidents[index].sourceReportIds.length + 1} reports in ${reportData.zoneId}`,
-              updatedAt: Date.now()
-            };
-          }
-        }
-
-        notifyListeners();
-        resolve(newReport);
-      } catch (err) {
-        reject(err);
-      }
-    });
-  },
-
-  // Incidents
-  subscribeToIncidents(role: UserRole, callback: (incidents: Incident[]) => void, onError?: (err: Error) => void) {
-    try {
-      enforceRules(role, 'read', 'incidents');
-      callback([...mockIncidents]);
-      const listener = () => {
-        try {
-          callback([...mockIncidents]);
-        } catch (e) {
-          if (onError) onError(e as Error);
-        }
-      };
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    } catch (err) {
-      if (onError) onError(err as Error);
-      return () => {};
-    }
-  },
-
-  updateIncidentStatus(role: UserRole, incidentId: string, status: Incident['status']): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        enforceRules(role, 'write', 'incidents');
-        const index = mockIncidents.findIndex(inc => inc.id === incidentId);
-        if (index !== -1) {
-          mockIncidents[index] = {
-            ...mockIncidents[index],
-            status,
-            updatedAt: Date.now()
-          };
-          notifyListeners();
-          resolve();
-        } else {
-          reject(new Error('Incident not found'));
-        }
-      } catch (err) {
-        reject(err);
-      }
-    });
-  },
-
-  // Dispatches
-  subscribeToDispatches(role: UserRole, callback: (dispatches: Dispatch[]) => void, onError?: (err: Error) => void) {
-    try {
-      enforceRules(role, 'read', 'dispatches');
-      callback([...mockDispatches]);
-      const listener = () => {
-        try {
-          callback([...mockDispatches]);
-        } catch (e) {
-          if (onError) onError(e as Error);
-        }
-      };
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    } catch (err) {
-      if (onError) onError(err as Error);
-      return () => {};
-    }
-  },
-
-  createDispatch(role: UserRole, dispatchData: Omit<Dispatch, 'id' | 'timestamp'>): Promise<Dispatch> {
-    return new Promise((resolve, reject) => {
-      try {
-        enforceRules(role, 'write', 'dispatches');
-        const newDispatch: Dispatch = {
-          ...dispatchData,
-          id: `disp_${Date.now()}`,
-          timestamp: Date.now()
-        };
-        mockDispatches.unshift(newDispatch);
-        notifyListeners();
-        resolve(newDispatch);
-      } catch (err) {
-        reject(err);
-      }
-    });
-  },
-
-  updateDispatchStatus(role: UserRole, dispatchId: string, status: Dispatch['status']): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        enforceRules(role, 'write', 'dispatches');
-        const index = mockDispatches.findIndex(disp => disp.id === dispatchId);
-        if (index !== -1) {
-          mockDispatches[index] = {
-            ...mockDispatches[index],
-            status
-          };
-          notifyListeners();
-          resolve();
-        } else {
-          reject(new Error('Dispatch not found'));
-        }
-      } catch (err) {
-        reject(err);
-      }
-    });
-  },
-
-  /**
-   * INTERNAL SIMULATION USE ONLY.
-   * Writes congestion data directly to in-memory state, bypassing role enforcement.
-   * This function is called exclusively by the congestion-simulator module.
-   * It MUST NOT be called from any user-facing code path.
-   * In a production Firestore deployment, congestion writes would require
-   * isRole('organizer') — enforced at the rules layer, not the client layer.
-   */
-  writeCongestionBatch(
-    updates: Array<Pick<CongestionZone, 'zoneId' | 'densityScore' | 'lastUpdated' | 'trend'>>
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        mockZones = mockZones.map(existing => {
-          const update = updates.find(u => u.zoneId === existing.zoneId);
-          if (!update) return existing;
-          return {
-            ...existing,
-            densityScore: update.densityScore,
-            lastUpdated: update.lastUpdated,
-            trend: update.trend,
-          };
-        });
-        notifyListeners();
-        resolve();
-      } catch (err) {
-        reject(err);
-      }
-    });
+// ---------------------------------------------------------------------------
+// Concierge — calls deployed askConcierge callable, falls back to local engine
+// ---------------------------------------------------------------------------
+export async function askConcierge(
+  req: Parameters<typeof askFlowEngine>[0],
+  congestion: Record<string, number>
+): Promise<ConciergeResponseData & { detectedLanguage?: string }> {
+  if (!isFirebaseConfigured()) {
+    const local = await askFlowEngine(req, congestion);
+    return { ...local, detectedLanguage: req.language };
   }
+  try {
+    const fn = httpsCallable(getFirebaseFunctions(), 'askConcierge');
+    const res = await fn({
+      query: req.query,
+      sessionId: req.sessionId,
+      userId: req.userId,
+      role: req.role,
+      language: req.language,
+      accessibilityMode: req.accessibilityMode,
+    });
+    const data = (res.data as any);
+    if (data?.success && data.data) {
+      return {
+        answerText: data.data.answerText,
+        route: data.data.route,
+        detectedLanguage: data.data.detectedLanguage ?? req.language,
+      };
+    }
+    // Backend returned a structured error — fall back locally
+    const local = await askFlowEngine(req, congestion);
+    return { ...local, detectedLanguage: req.language };
+  } catch {
+    // Network / timeout / 404 — deterministic fallback (§13)
+    const local = await askFlowEngine(req, congestion);
+    return { ...local, detectedLanguage: req.language };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Congestion State — real-time Firestore listener
+// ---------------------------------------------------------------------------
+export function subscribeToCongestion(
+  role: UserRole,
+  callback: (zones: CongestionZone[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  try {
+    enforceRules(role, 'read', 'congestionState');
+  } catch (err) {
+    handleError(err, onError);
+    return () => {};
+  }
+  if (!isFirebaseConfigured()) {
+    onError?.(new Error('Firebase not configured'));
+    return () => {};
+  }
+  const col = collection(getFirebaseDb(), 'congestionState');
+  const unsub = onSnapshot(col, (snap) => {
+    const zones: CongestionZone[] = [];
+    snap.forEach((d) => zones.push(d.data() as CongestionZone));
+    callback(zones);
+  }, (err) => handleError(err, onError));
+  return unsub;
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+export function subscribeToReports(
+  role: UserRole,
+  userId: string,
+  callback: (reports: Report[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  try {
+    enforceRules(role, 'read', 'reports', userId);
+  } catch (err) {
+    handleError(err, onError);
+    return () => {};
+  }
+  if (!isFirebaseConfigured()) {
+    onError?.(new Error('Firebase not configured'));
+    return () => {};
+  }
+  const col = collection(getFirebaseDb(), 'reports');
+  const q = role === 'volunteer'
+    ? query(col, where('authorId', '==', userId))
+    : col;
+  const unsub = onSnapshot(q, (snap) => {
+    const reports: Report[] = [];
+    snap.forEach((d) => reports.push(d.data() as Report));
+    callback(reports.sort((a, b) => b.timestamp - a.timestamp));
+  }, (err) => handleError(err, onError));
+  return unsub;
+}
+
+export function attemptCrossRoleRead(role: UserRole): Promise<Report[]> {
+  return new Promise((resolve, reject) => {
+    try {
+      enforceRules(role, 'read', 'reports', 'other_user');
+      resolve([]);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+export async function createReport(
+  role: UserRole,
+  reportData: Omit<Report, 'id' | 'timestamp'>
+): Promise<Report> {
+  enforceRules(role, 'write', 'reports');
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
+  const ref = await addDoc(collection(getFirebaseDb(), 'reports'), {
+    ...reportData,
+    timestamp: Date.now(),
+  });
+  return { ...reportData, id: ref.id, timestamp: Date.now() } as Report;
+}
+
+// ---------------------------------------------------------------------------
+// Incidents
+// ---------------------------------------------------------------------------
+export function subscribeToIncidents(
+  role: UserRole,
+  callback: (incidents: Incident[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  try {
+    enforceRules(role, 'read', 'incidents');
+  } catch (err) {
+    handleError(err, onError);
+    return () => {};
+  }
+  if (!isFirebaseConfigured()) {
+    onError?.(new Error('Firebase not configured'));
+    return () => {};
+  }
+  const col = collection(getFirebaseDb(), 'incidents');
+  const q = query(col, orderBy('updatedAt', 'desc'), limit(100));
+  const unsub = onSnapshot(q, (snap) => {
+    const incidents: Incident[] = [];
+    snap.forEach((d) => incidents.push(d.data() as Incident));
+    callback(incidents);
+  }, (err) => handleError(err, onError));
+  return unsub;
+}
+
+export async function updateIncidentStatus(
+  role: UserRole,
+  incidentId: string,
+  status: Incident['status']
+): Promise<void> {
+  enforceRules(role, 'write', 'incidents');
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
+  await updateDoc(doc(getFirebaseDb(), 'incidents', incidentId), { status, updatedAt: Date.now() });
+}
+
+// ---------------------------------------------------------------------------
+// Dispatches
+// ---------------------------------------------------------------------------
+export function subscribeToDispatches(
+  role: UserRole,
+  callback: (dispatches: Dispatch[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  try {
+    enforceRules(role, 'read', 'dispatches');
+  } catch (err) {
+    handleError(err, onError);
+    return () => {};
+  }
+  if (!isFirebaseConfigured()) {
+    onError?.(new Error('Firebase not configured'));
+    return () => {};
+  }
+  const col = collection(getFirebaseDb(), 'dispatches');
+  const q = query(col, orderBy('timestamp', 'desc'), limit(100));
+  const unsub = onSnapshot(q, (snap) => {
+    const dispatches: Dispatch[] = [];
+    snap.forEach((d) => dispatches.push(d.data() as Dispatch));
+    callback(dispatches);
+  }, (err) => handleError(err, onError));
+  return unsub;
+}
+
+export async function createDispatch(
+  role: UserRole,
+  dispatchData: Omit<Dispatch, 'id' | 'timestamp'>
+): Promise<Dispatch> {
+  enforceRules(role, 'write', 'dispatches');
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
+  const ref = await addDoc(collection(getFirebaseDb(), 'dispatches'), {
+    ...dispatchData,
+    timestamp: Date.now(),
+  });
+  return { ...dispatchData, id: ref.id, timestamp: Date.now() } as Dispatch;
+}
+
+export async function updateDispatchStatus(
+  role: UserRole,
+  dispatchId: string,
+  status: Dispatch['status']
+): Promise<void> {
+  enforceRules(role, 'write', 'dispatches');
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
+  await updateDoc(doc(getFirebaseDb(), 'dispatches', dispatchId), { status });
+}
+
+// ---------------------------------------------------------------------------
+// Congestion write (organizer-only — used by the simulation engine)
+// ---------------------------------------------------------------------------
+export async function writeCongestionBatch(
+  updates: Array<Pick<CongestionZone, 'zoneId' | 'densityScore' | 'lastUpdated' | 'trend'>>
+): Promise<void> {
+  if (!isFirebaseConfigured()) return;
+  const db = getFirebaseDb();
+  const { writeBatch } = await import('firebase/firestore');
+  const batch = writeBatch(db);
+  for (const u of updates) {
+    const ref = doc(db, 'congestionState', u.zoneId);
+    batch.set(ref, u, { merge: true });
+  }
+  await batch.commit();
+}
+
+// ---------------------------------------------------------------------------
+// Egress ranking — deployed rankEgressOptions callable, falls back locally
+// ---------------------------------------------------------------------------
+export async function rankEgressOptions(params: Parameters<typeof localRankEgressOptions>[0]) {
+  if (!isFirebaseConfigured()) return localRankEgressOptions(params);
+  try {
+    const fn = httpsCallable(getFirebaseFunctions(), 'rankEgressOptions');
+    const res = await fn(params);
+    const data = (res.data as any);
+    if (data?.success && data.data) return data;
+    return localRankEgressOptions(params);
+  } catch {
+    return localRankEgressOptions(params);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Backwards-compatible simulator hook — retained for page imports.
+// The real congestion feed now lives in Firestore; this is a no-op here so
+// pages that call it keep compiling. The simulation engine (congestion-
+// simulator.ts) drives writes via writeCongestionBatch.
+// ---------------------------------------------------------------------------
+export function runSimulatorTick() {
+  // No-op: live data flows from Firestore, not the client tick.
+}
+
+// ---------------------------------------------------------------------------
+// `db` object — preserves the original public API used by page components.
+// All methods delegate to the real-Firestore implementations above.
+// ---------------------------------------------------------------------------
+export const db = {
+  subscribeToCongestion,
+  subscribeToReports,
+  attemptCrossRoleRead,
+  createReport,
+  subscribeToIncidents,
+  updateIncidentStatus,
+  subscribeToDispatches,
+  createDispatch,
+  updateDispatchStatus,
+  writeCongestionBatch,
+  runSimulatorTick,
 };

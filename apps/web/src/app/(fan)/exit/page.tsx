@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from '@/context/SessionContext';
-import { db } from '@/lib/db';
+import { db, rankEgressOptions } from '@/lib/db';
 import { CongestionZone } from '@matchflow/types';
 import { Navigation, Train, Car, Zap, Loader } from 'lucide-react';
 import { AlertTriangle, CheckCircle } from '@matchflow/ui';
 import { logEvent } from '@/lib/analytics';
-import { rankEgressOptions } from '@matchflow/flow-engine';
 
 // ---------------------------------------------------------------------------
 // Egress options data — static definitions, live ranking from Gemini
