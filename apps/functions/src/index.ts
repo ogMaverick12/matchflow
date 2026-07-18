@@ -54,8 +54,11 @@ function checkRateLimit(sessionId: string): { allowed: boolean; retryAfterMs?: n
 // Fast tier:             high-frequency, latency-critical (fan concierge, simplifier)
 // Higher-capability tier: lower-frequency, quality-critical (incident summarization, dispatch advisor)
 // ----------------------------------------------------
-const MODEL_FAST = 'gemini-3.5-flash';           // askConcierge, simplifyText
-const MODEL_HIGH_CAP = 'gemini-3.5-pro';         // summarizeIncident, suggestDispatch
+// Uses the "gemini-flash-latest" rolling alias so the app never breaks when a
+// specific model version is sunset. Both tiers unified to one flash model for
+// stability (per deployment decision). Points at current stable Gemini Flash.
+const MODEL_FAST = 'gemini-flash-latest';         // askConcierge, simplifyText, rankEgressOptions
+const MODEL_HIGH_CAP = 'gemini-flash-latest';     // summarizeIncident, suggestDispatch
 
 // §13: Hard client-side timeouts — deterministic fallback fires when exceeded.
 // Re-verified after every new code path to ensure no Gemini call is unguarded.
@@ -181,7 +184,7 @@ async function executeTool(name: string, args: any, zoneCongestion: Record<strin
 }
 
 // ----------------------------------------------------
-// 1. askConcierge — Fast tier (gemini-2.5-flash)
+// 1. askConcierge — Fast tier (gemini-flash-latest)
 // §13: Latency-critical, high-frequency fan surface.
 // §13: Hard 4-second timeout → deterministic fallback.
 // ----------------------------------------------------
@@ -234,7 +237,7 @@ export const askConcierge = onCall<AskConciergeRequest, Promise<AskConciergeResp
   }
 
   try {
-    // §13: MODEL_FAST (gemini-2.5-flash) — latency-critical fan surface
+    // §13: MODEL_FAST (gemini-flash-latest) — latency-critical fan surface
     const geminiCall = async () => {
       const model = genAI.getGenerativeModel({
         model: MODEL_FAST,
@@ -294,7 +297,7 @@ Generate the natural language wayfinding response using the tool output above.`;
 });
 
 // ----------------------------------------------------
-// 2. summarizeIncident — Higher-capability tier (gemini-2.5-pro)
+// 2. summarizeIncident — Higher-capability tier (gemini-flash-latest)
 // §13: Lower-frequency, quality of judgment matters more than speed.
 // §13: Batched: reports arriving within BATCH_WINDOW_MS share one Gemini call.
 // §13: Hard 8-second per-attempt timeout inside retry wrapper.
@@ -337,7 +340,7 @@ async function flushBatch(): Promise<void> {
     let summaries: Array<{ summary: string; description: string; severity: string; confidence: number }>;
 
     if (genAI) {
-      // §13: MODEL_HIGH_CAP (gemini-2.5-pro) — quality-critical ops path
+      // §13: MODEL_HIGH_CAP (gemini-flash-latest) — quality-critical ops path
       const getSummariesFromGemini = async () => {
         _geminiSummarizeCallCount++;
         const model = genAI.getGenerativeModel({
@@ -475,7 +478,7 @@ export const summarizeIncident = onDocumentCreated('reports/{reportId}', async (
 });
 
 // ----------------------------------------------------
-// 3. suggestDispatch — Higher-capability tier (gemini-2.5-pro)
+// 3. suggestDispatch — Higher-capability tier (gemini-flash-latest)
 // §13: Quality of dispatch ranking matters more than speed.
 // §13: Hard 5-second timeout → deterministic rankDispatches fallback.
 // ----------------------------------------------------
@@ -500,7 +503,7 @@ export const suggestDispatch = onCall<SuggestDispatchRequest, Promise<SuggestDis
   const genAI = getGenAI();
   if (genAI) {
     try {
-      // §13: MODEL_HIGH_CAP (gemini-2.5-pro) — ops dispatch quality matters more than speed
+      // §13: MODEL_HIGH_CAP (gemini-flash-latest) — ops dispatch quality matters more than speed
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_CAP,
         generationConfig: { responseMimeType: 'application/json' },
@@ -539,7 +542,7 @@ Roster list: ${JSON.stringify(data.roster)}`;
 });
 
 // ----------------------------------------------------
-// 4. simplifyText — Fast tier (gemini-2.5-flash)
+// 4. simplifyText — Fast tier (gemini-flash-latest)
 // §13: High-frequency, best-effort — fast tier appropriate.
 // §13: Hard 3-second timeout → return originalText unchanged.
 // ----------------------------------------------------
@@ -557,7 +560,7 @@ export const simplifyText = onCall<SimplifyTextRequest, Promise<SimplifyTextResp
 
   if (genAI) {
     try {
-      // §13: MODEL_FAST (gemini-2.5-flash) — best-effort accessibility aid
+      // §13: MODEL_FAST (gemini-flash-latest) — best-effort accessibility aid
       const model = genAI.getGenerativeModel({
         model: MODEL_FAST,
         systemInstruction: `You are an accessibility simplifier bot. Rewrite the user input text to make it extremely easy to read.
@@ -587,7 +590,7 @@ Use short sentences, clear nouns, and bullet points. Preserve all core direction
 });
 
 // ----------------------------------------------------
-// 5. rankEgressOptions — Fast tier (gemini-3.5-flash)
+// 5. rankEgressOptions — Fast tier (gemini-flash-latest)
 // §4B §7: AI ranks exit/transit options by live egress-zone density + transit
 //         status. Replaces the bare if/else in the fan exit planner.
 // §13: Fast tier — fan is actively choosing their exit (latency-critical).
