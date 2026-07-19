@@ -98,8 +98,8 @@ export default function VolunteerPage() {
             role="alert"
             className="glass-panel"
             style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              color: 'var(--alert-accent)',
+              backgroundColor: '#7f1d1d',
+              color: '#ffffff',
               border: '1px solid var(--alert-accent)',
               padding: '12px 16px',
               borderRadius: '6px',
@@ -119,8 +119,8 @@ export default function VolunteerPage() {
             role="status"
             className="glass-panel"
             style={{
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              color: 'var(--secondary-accent)',
+              backgroundColor: '#065f46',
+              color: '#ffffff',
               border: '1px solid var(--secondary-accent)',
               padding: '12px 16px',
               borderRadius: '6px',

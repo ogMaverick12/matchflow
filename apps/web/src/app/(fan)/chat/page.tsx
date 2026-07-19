@@ -355,10 +355,10 @@ function ChatContent() {
                       style={{
                         padding: '8px 12px',
                         borderRadius: '6px',
-                        backgroundColor: 'rgba(251, 191, 36, 0.15)',
+                        backgroundColor: '#7c2d12',
                         border: '1px solid var(--primary-accent)',
                         fontSize: '13px',
-                        color: 'var(--primary-accent)',
+                        color: '#ffffff',
                         fontWeight: 'bold',
                         display: 'flex',
                         alignItems: 'center',

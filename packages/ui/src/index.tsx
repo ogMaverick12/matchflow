@@ -58,7 +58,10 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
     fontFamily: "'Inter', sans-serif",
     textTransform: 'uppercase',
     borderWidth: '1px',
-    borderStyle: 'solid'
+    borderStyle: 'solid',
+    // §9: solid backgrounds + white text guarantee WCAG 2 AA contrast (≥4.5:1)
+    // even when the badge sits over a translucent/dark surface.
+    color: '#ffffff'
   };
 
   let icon: React.ReactNode;
@@ -67,8 +70,7 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
   if (severity === 'high') {
     badgeStyle = {
       ...badgeStyle,
-      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-      color: '#ef4444',
+      backgroundColor: '#b91c1c',
       borderColor: '#ef4444'
     };
     icon = <AlertTriangle size={14} />;
@@ -76,8 +78,7 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
   } else if (severity === 'medium') {
     badgeStyle = {
       ...badgeStyle,
-      backgroundColor: 'rgba(245, 158, 11, 0.1)',
-      color: '#fbbf24',
+      backgroundColor: '#b45309',
       borderColor: '#fbbf24'
     };
     icon = <AlertCircle size={14} />;
@@ -85,8 +86,7 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
   } else {
     badgeStyle = {
       ...badgeStyle,
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-      color: '#10b981',
+      backgroundColor: '#047857',
       borderColor: '#10b981'
     };
     icon = <CheckCircle size={14} />;

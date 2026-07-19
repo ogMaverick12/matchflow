@@ -44,41 +44,37 @@ async function analyzeWithAxe(page: Page, pageName: string) {
 const BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
 
 async function navigate(page: Page, path: string) {
-  // First go to /login to establish origin context for localStorage
+  // First establish origin context (and trigger any default fan session mint).
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'commit', timeout: 8000 });
 
-  // Map route path to role requirements
+  // Map route path to role requirements for the server-signed session.
   let role = 'fan';
+  let userId: string | undefined;
   if (path === '/dashboard' || path.startsWith('/incidents')) {
     role = 'staff';
+    userId = 'user_priya';
   } else if (path === '/volunteer') {
     role = 'volunteer';
+    userId = 'user_diego';
   } else if (path === '/admin') {
     role = 'organizer';
+    userId = 'user_marcus';
   }
 
-  // Set the session role in localStorage, preserving accessibility settings
-  await page.evaluate((r) => {
-    const existing = localStorage.getItem('matchflow_session');
-    const parsed = existing ? JSON.parse(existing) : {
-      language: 'en',
-      accessibilityMode: {
-        mobilityRouting: false,
-        highContrast: false,
-        simplifiedLanguage: false
-      }
-    };
-    localStorage.setItem('matchflow_session', JSON.stringify({
-      ...parsed,
-      sessionId: parsed.sessionId || 'test_session_id',
-      userId: parsed.userId || 'test_user_id',
-      role: r,
-      lastActive: Date.now()
-    }));
-  }, role);
+  // Mint a real, server-signed httpOnly session cookie (matches RBAC design).
+  await page.request.post(`${BASE_URL}/api/auth/session`, {
+    data: { role, userId },
+  });
 
-  // Navigate to target path
+  // Navigate to target path — the cookie authorizes the (ops) layout gate.
   await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 15000 });
+
+  // For ops pages, the (ops) layout re-syncs the verified role from the cookie
+  // on mount. Wait until access is granted (authenticated main region renders)
+  // before asserting on the page content.
+  if (role !== 'fan') {
+    await page.waitForSelector('#ops-main-content', { timeout: 15000 });
+  }
 }
 
 
@@ -432,12 +428,15 @@ test.describe('§9 — High-contrast / low-stimulation mode', () => {
     }).toPass({ timeout: 8000 });
 
 
-    // Verify the CSS rule for motion reduction exists in the stylesheet
+    // Verify the CSS rule for motion reduction exists in the stylesheet.
+    // Note: CSSOM normalizes `animation: none` into the expanded longhand
+    // (`animation: auto ease 0s 1 normal none running none`), so we match the
+    // `… none` token rather than the literal source substring.
     const hasMotionRule = await page.evaluate(() => {
       for (const sheet of Array.from(document.styleSheets)) {
         try {
           for (const rule of Array.from(sheet.cssRules)) {
-            if (rule.cssText?.includes('.high-contrast') && rule.cssText?.includes('animation: none')) {
+            if (/\.high-contrast/.test(rule.cssText ?? '') && /animation:[^;]*none/.test(rule.cssText ?? '')) {
               return true;
             }
           }
@@ -452,7 +451,7 @@ test.describe('§9 — High-contrast / low-stimulation mode', () => {
       for (const sheet of Array.from(document.styleSheets)) {
         try {
           for (const rule of Array.from(sheet.cssRules)) {
-            if (rule.cssText?.includes('.high-contrast') && rule.cssText?.includes('backdrop-filter: none')) {
+            if (/\.high-contrast/.test(rule.cssText ?? '') && /backdrop-filter:\s*none/.test(rule.cssText ?? '')) {
               return true;
             }
           }

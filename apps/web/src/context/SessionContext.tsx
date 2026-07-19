@@ -64,6 +64,33 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
+  // Sync the verified server session (from the httpOnly cookie) into client
+  // state on mount. The cookie is the source of truth for role/userId; this
+  // keeps the (ops) layout gate and per-role subscriptions in sync after a
+  // hard navigation or a test-issued session, without trusting localStorage.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/session', { method: 'GET' });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json?.authenticated || !json?.session) return;
+        if (cancelled) return;
+        updateSession(prev => ({
+          ...prev,
+          role: json.session.role,
+          userId: json.session.userId,
+          sessionId: json.session.userId,
+          lastActive: Date.now()
+        }));
+      } catch {
+        /* non-fatal: stays on default fan session */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Sync high contrast and language RTL to document root
   useEffect(() => {
     if (typeof window === 'undefined') return;

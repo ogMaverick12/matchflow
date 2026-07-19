@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { signSession, COOKIE_NAME, Role } from '@/lib/auth';
+import { signSession, verifySession, COOKIE_NAME, Role } from '@/lib/auth';
 
 const VALID_ROLES: Role[] = ['fan', 'volunteer', 'staff', 'organizer'];
 
@@ -45,6 +45,14 @@ export async function POST(req: NextRequest) {
 }
 
 // Returns the current verified session (from the cookie) without minting a new one.
-export async function GET() {
-  return NextResponse.json({ note: 'POST to /api/auth/session to issue a session cookie.' });
+export async function GET(req: NextRequest) {
+  const token = req.cookies.get(COOKIE_NAME)?.value;
+  const claims = await verifySession(token);
+  if (!claims) {
+    return NextResponse.json({ authenticated: false }, { status: 401 });
+  }
+  return NextResponse.json({
+    authenticated: true,
+    session: { userId: claims.userId, role: claims.role }
+  });
 }

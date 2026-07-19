@@ -39,15 +39,16 @@ export default function MapPage() {
     return () => unsubscribe();
   }, [session.role, simulateOffline]);
 
-  // Color mapping based on density score conforming to Night Match palette
+  // Color mapping based on density score conforming to Night Match palette.
+  // §9: solid backgrounds + white text guarantee WCAG 2 AA contrast (≥4.5:1).
   const getDensityColors = (score: number) => {
     if (score >= 0.8) {
-      return { text: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', border: '#ef4444', icon: <AlertTriangle size={14} />, label: 'CRITICAL CONGESTION' };
+      return { text: '#ffffff', bg: '#b91c1c', border: '#ef4444', icon: <AlertTriangle size={14} />, label: 'CRITICAL CONGESTION' };
     }
     if (score >= 0.5) {
-      return { text: '#fbbf24', bg: 'rgba(251, 191, 36, 0.1)', border: '#fbbf24', icon: <AlertCircle size={14} />, label: 'MODERATE DENSITY' };
+      return { text: '#ffffff', bg: '#b45309', border: '#fbbf24', icon: <AlertCircle size={14} />, label: 'MODERATE DENSITY' };
     }
-    return { text: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', border: '#10b981', icon: <CheckCircle size={14} />, label: 'ALL CLEAR / NORMAL' };
+    return { text: '#ffffff', bg: '#047857', border: '#10b981', icon: <CheckCircle size={14} />, label: 'ALL CLEAR / NORMAL' };
   };
 
   const getMapSectorColors = (score: number) => {
