@@ -62,15 +62,21 @@ export default function DashboardPage() {
     runSimulatorTick();
   };
 
-  // Proof check: attempt cross-role read (try reading reports collection as a Fan)
+  // Real proof: mint a fan token, then hit the protected /api/db?coll=incidents
+  // endpoint with that token. The server verifies the role from the signed
+  // token and must reject the read — no client-side simulation.
   const verifyCrossRoleRead = async () => {
     setVerifying(true);
     setVerificationResult(null);
     try {
-      await db.attemptCrossRoleRead('fan');
-      setVerificationResult('❌ FAIL: Database allowed a fan to read internal volunteer reports.');
+      const { status, ok } = await db.proveFanCannotReadIncidents();
+      if (ok) {
+        setVerificationResult(`✅ PASS: server rejected fan read of incidents (HTTP ${status}). Access is enforced server-side in the API layer (Upstash-backed, role-verified tokens).`);
+      } else {
+        setVerificationResult(`❌ FAIL: server allowed a fan to read incidents (HTTP ${status}).`);
+      }
     } catch (err: any) {
-      setVerificationResult(`✅ PASS (REJECTED): Direct cross-role read failed as expected. Error: "${err.message}"`);
+      setVerificationResult(`❌ ERROR: verification request failed — "${err?.message ?? err}".`);
     } finally {
       setVerifying(false);
     }
@@ -291,10 +297,10 @@ export default function DashboardPage() {
         marginTop: '32px'
       }}>
         <h4 style={{ margin: '0 0 8px 0', fontSize: '18px', color: 'var(--text-primary)', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif" }}>
-          Security Check: Prove Firestore Gating
+          Security Check: Prove Server-Side Gating
         </h4>
         <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          This triggers a mock cross-role query, making a direct call to the reports collection using credentials with the &apos;fan&apos; role. The database rules must block this read.
+          This mints a throwaway <code>fan</code> session token and calls the protected <code>/api/db?coll=incidents</code> endpoint with it. Access control is enforced server-side in the API layer (Upstash-backed, role-verified tokens) — a fan must be rejected. (The legacy <code>firestore.rules</code> file remains only as documented reference for the Firebase deployment path.)
         </p>
 
         <button

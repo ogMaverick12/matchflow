@@ -119,12 +119,14 @@ const TICK_INTERVAL_MS = 8_000; // 8-second tick — matches §6 "fixed tick int
 
 /**
  * Start the simulation engine. Idempotent — calling multiple times is safe.
- * @param role — passed through to the DB write layer for Firestore security rules
+ * @param role — must be 'organizer' to publish congestion; enforced server-side
+ *               in /api/simulate (RBAC: organizer-only write to congestionState).
  */
 export function startCongestionSimulation(role: UserRole): void {
-  // In production, congestion writes are organizer-only (firestore.rules).
-  // Only an organizer-driven session may run the simulation that publishes
-  // density scores; other roles simply consume the live Firestore feed.
+  // In production, congestion writes are organizer-only (enforced server-side in
+  // /api/simulate via apps/web/src/lib/rbac.ts). Only an organizer-driven session
+  // may run the simulation that publishes density scores; other roles simply
+  // consume the live feed.
   if (role !== 'organizer') {
     console.info('[CongestionSimulator] Skipped — only organizers publish congestion (role: ' + role + ')');
     return;

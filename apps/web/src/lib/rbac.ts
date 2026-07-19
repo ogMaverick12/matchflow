@@ -1,7 +1,7 @@
 // Framework-agnostic RBAC matrix for MatchFlow. No Next.js / server imports
 // so it can be used by both server routes and 'use client' components.
 //
-// Matrix (mirrors the intended firestore.rules):
+// Matrix (authoritative; mirrors the documented Firebase firestore.rules reference):
 //   fan            : read public (concourseGraph, congestionState); no writes
 //   volunteer      : create reports + read OWN reports
 //   staff/organizer: read/write incidents + read/create dispatches

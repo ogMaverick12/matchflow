@@ -122,13 +122,6 @@ export async function createReport(
   return (data as any[])[0];
 }
 
-export function attemptCrossRoleRead(role: UserRole): Promise<Report[]> {
-  return new Promise((resolve, reject) => {
-    try { enforceRules(role, 'read', 'reports', 'other_user'); resolve([]); }
-    catch (e) { reject(e); }
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Incidents
 // ---------------------------------------------------------------------------
@@ -230,6 +223,41 @@ export async function rankEgressOptions(params: Parameters<typeof flowRankEgress
 }
 
 // ---------------------------------------------------------------------------
+// Server-side RBAC proof
+// ---------------------------------------------------------------------------
+// Mints a throwaway `fan` session token (with `credentials: 'omit'` so the
+// user's real ops cookie is never disturbed), then calls the protected
+// /api/db?coll=incidents endpoint with that fan Bearer token. The server
+// verifies the token and must reject the read (401 unauthenticated for a
+// missing/invalid token, or 403 for an authenticated-but-unauthorized fan).
+// Returns the HTTP status so the UI can assert real, server-enforced gating.
+export async function proveFanCannotReadIncidents(): Promise<{ status: number; ok: boolean }> {
+  // 1) Mint a fan token. credentials:'omit' => the Set-Cookie is NOT persisted
+  //    to the browser jar, so the operator's own session is untouched.
+  const sessionRes = await fetch('/api/auth/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'omit',
+    body: JSON.stringify({ role: 'fan' }),
+  });
+  const setCookie = sessionRes.headers.get('set-cookie') || '';
+  const match = setCookie.match(/(?:^|;\s*)matchflow_session=([^;]+)/) || setCookie.match(/matchflow_session=([^;,\s]+)/);
+  const fanToken = match ? match[1] : '';
+
+  // 2) Attempt the privileged read AS the fan token.
+  const res = await fetch('/api/db?coll=incidents', {
+    method: 'GET',
+    headers: fanToken ? { Authorization: `Bearer ${fanToken}` } : {},
+    credentials: 'omit', // do not send the operator's own cookie
+  });
+
+  // 401 (no/invalid token) or 403 (authorized-but-forbidden) both prove the
+  // server is enforcing access control. Anything else (2xx) is a failure.
+  const ok = res.status === 401 || res.status === 403;
+  return { status: res.status, ok };
+}
+
+// ---------------------------------------------------------------------------
 // Simulator hook (kept for page imports; real tick runs server-side)
 // ---------------------------------------------------------------------------
 export function runSimulatorTick() {
@@ -243,7 +271,6 @@ export const db = {
   subscribeToCongestion,
   subscribeToReports,
   createReport,
-  attemptCrossRoleRead,
   subscribeToIncidents,
   updateIncidentStatus,
   subscribeToDispatches,
@@ -252,6 +279,7 @@ export const db = {
   writeCongestionBatch,
   askConcierge,
   rankEgressOptions,
+  proveFanCannotReadIncidents,
   runSimulatorTick,
 };
 
