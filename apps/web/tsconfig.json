@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@matchflow/ui": ["../../packages/ui/src"],
+      "@matchflow/types": ["../../packages/types/src"],
+      "@matchflow/concourse-graph": ["../../packages/concourse-graph/src"],
+      "@matchflow/flow-engine": ["../../packages/flow-engine/src"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
