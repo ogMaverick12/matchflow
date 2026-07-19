@@ -5,7 +5,7 @@ import { UserRole, Session } from '@matchflow/types';
 
 interface SessionContextType {
   session: Session;
-  setRole: (role: UserRole) => Promise<void>;
+  setRole: (role: UserRole, userId?: string) => Promise<void>;
   ensureFanSession: () => Promise<void>;
   setLanguage: (lang: string) => void;
   setAccessibilityMode: (mode: Partial<Session['accessibilityMode']>) => void;
@@ -85,11 +85,12 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Request a signed session from the server with the chosen role. The server
   // sets the httpOnly cookie and returns the verified { userId, role }.
-  const setRole = async (role: UserRole) => {
+  // An optional userId lets seeded personas keep a stable identity for RBAC.
+  const setRole = async (role: UserRole, userId?: string) => {
     const res = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role })
+      body: JSON.stringify({ role, userId })
     });
     const json = await res.json();
     if (!json?.success) {

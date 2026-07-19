@@ -7,9 +7,20 @@ import { Shield } from 'lucide-react';
 
 type Role = 'fan' | 'volunteer' | 'staff' | 'organizer';
 
+// Seeded operational personas. The userId is sent to the server so the minted
+// signed token carries a stable, recognizable identity for RBAC (e.g. a
+// volunteer can only read their own reports). The role claim itself is always
+// issued by the server — the client never asserts it.
+const PERSONAS: Record<Exclude<Role, 'fan'>, { userId: string; name: string }> = {
+  volunteer: { userId: 'user_diego', name: 'Diego' },
+  staff: { userId: 'user_priya', name: 'Priya' },
+  organizer: { userId: 'user_marcus', name: 'Marcus' },
+};
+
 export default function LoginPage() {
   const router = useRouter();
-  const { session, setRole } = useSession();
+  const { setRole } = useSession();
+  const [selected, setSelected] = React.useState<Role | null>(null);
 
   const routeFor = (role: Role) => {
     if (role === 'volunteer') router.push('/volunteer');
@@ -18,17 +29,20 @@ export default function LoginPage() {
     else router.push('/home');
   };
 
+  // Request a signed session from the server. The server mints an httpOnly
+  // cookie carrying the role claim and returns the verified role; the client
+  // only ever holds the token (cookie) + the server-confirmed claim — never a
+  // raw, self-editable role string.
   const handleRoleSelect = async (role: Role) => {
-    // Mint a signed session server-side (sets the httpOnly cookie and returns
-    // the verified role). The role used for routing is the one the server
-    // acknowledges, never a self-asserted client value.
+    setSelected(role);
     try {
-      await setRole(role);
+      const userId = role === 'fan' ? undefined : PERSONAS[role].userId;
+      await setRole(role, userId);
     } catch {
       alert('Failed to start session. Please try again.');
       return;
     }
-    routeFor(session.role as Role);
+    routeFor(role);
   };
 
   return (
@@ -63,8 +77,8 @@ export default function LoginPage() {
               padding: '14px',
               borderRadius: '6px',
               border: '1px solid var(--border-color)',
-              backgroundColor: session.role === 'volunteer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
-              color: session.role === 'volunteer' ? 'var(--primary-accent)' : 'var(--text-primary)',
+              backgroundColor: selected === 'volunteer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
+              color: selected === 'volunteer' ? 'var(--primary-accent)' : 'var(--text-primary)',
               fontWeight: 'bold',
               fontSize: '14px',
               textAlign: 'left',
@@ -84,8 +98,8 @@ export default function LoginPage() {
               padding: '14px',
               borderRadius: '6px',
               border: '1px solid var(--border-color)',
-              backgroundColor: session.role === 'staff' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
-              color: session.role === 'staff' ? 'var(--primary-accent)' : 'var(--text-primary)',
+              backgroundColor: selected === 'staff' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
+              color: selected === 'staff' ? 'var(--primary-accent)' : 'var(--text-primary)',
               fontWeight: 'bold',
               fontSize: '14px',
               textAlign: 'left',
@@ -105,8 +119,8 @@ export default function LoginPage() {
               padding: '14px',
               borderRadius: '6px',
               border: '1px solid var(--border-color)',
-              backgroundColor: session.role === 'organizer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
-              color: session.role === 'organizer' ? 'var(--primary-accent)' : 'var(--text-primary)',
+              backgroundColor: selected === 'organizer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
+              color: selected === 'organizer' ? 'var(--primary-accent)' : 'var(--text-primary)',
               fontWeight: 'bold',
               fontSize: '14px',
               textAlign: 'left',
