@@ -1,9 +1,13 @@
 import { findShortestPath, MERCEDES_BENZ_NODES } from '@matchflow/concourse-graph';
-import { AskConciergeRequest, AskConciergeResponse } from '@matchflow/types';
+import { AskConciergeRequest, AskConciergeResponse, RankEgressRequest, RankEgressResponse, EgressOption } from '@matchflow/types';
 import { z } from 'zod';
 
 // Extract data part from AskConciergeResponse
 export type ConciergeResponseData = NonNullable<AskConciergeResponse['data']>;
+
+// Re-export the shared egress contracts so callers can import them from a
+// single package without reaching into @matchflow/types directly.
+export type { RankEgressRequest, RankEgressResponse, EgressOption } from '@matchflow/types';
 
 // 1. Zod Incident Summary Validation Schema
 export const IncidentSummarySchema = z.object({
@@ -450,34 +454,9 @@ export async function askFlowEngine(
 // trip when the Cloud Function isn't available (e.g. local dev, emulator-less).
 // In production, swap the body to call the deployed rankEgressOptions function.
 // ---------------------------------------------------------------------------
-export interface EgressOption {
-  id: string;
-  name: string;
-  gate: string;
-  type: 'transit' | 'rideshare' | 'walk';
-  estimatedMinutes: number;
-  currentQueueScore: number;
-  sustainabilityScore: number;
-}
+export interface RankEgressResult extends RankEgressResponse {}
 
-export interface RankEgressRequest {
-  sessionId: string;
-  userId: string;
-  role: string;
-  zoneScores: Record<string, number>;
-  options: EgressOption[];
-}
-
-export interface RankEgressResult {
-  success: boolean;
-  data?: {
-    rankedOptions: Array<{ id: string; rank: number; rationale: string; recommended: boolean }>;
-    summary: string;
-  };
-  error?: { code: string; message: string };
-}
-
-export async function rankEgressOptions(req: RankEgressRequest): Promise<RankEgressResult> {
+export async function rankEgressOptions(req: RankEgressRequest): Promise<RankEgressResponse> {
   const { options, zoneScores } = req;
 
   // Deterministic ranking: weighted score (speed 50%, sustainability 30%, wait 20%)

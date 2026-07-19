@@ -3,6 +3,7 @@ import { kv } from '@vercel/kv';
 import { askFlowEngine } from '@matchflow/flow-engine';
 import { verifySession, extractToken, AuthError } from '@/lib/auth';
 import { Role } from '@/lib/rbac';
+import { AskConciergeRequest } from '@matchflow/types';
 
 // Serverless concierge — thin wrapper around the shared flow-engine.
 // The engine (packages/flow-engine) owns the Gemini call, the tool-execution
@@ -17,7 +18,7 @@ type CongestionRow = { zoneId: string; densityScore: number };
 
 const KV_READY = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
-async function readCollection(coll: string): Promise<any[]> {
+async function readCollection(coll: string): Promise<unknown[]> {
   if (!KV_READY) return [];
   try {
     const v = await kv.get(coll);
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = (await req.json()) as any;
+    const body = (await req.json()) as Partial<AskConciergeRequest>;
     if (!body?.query) {
       return NextResponse.json({ success: false, error: { code: 'invalid-argument', message: 'Missing query.' } }, { status: 400 });
     }
@@ -54,8 +55,8 @@ export async function POST(req: NextRequest) {
       if (z?.zoneId && typeof z.densityScore === 'number') zoneCongestion[z.zoneId] = z.densityScore;
     }
     const activeIncidents: IncidentRow[] = (incidents as IncidentRow[])
-      .filter(i => i?.status === 'active')
-      .map(i => ({ zoneId: i.zoneId, summary: i.summary, severity: i.severity, status: i.status }));
+      .filter((i) => i?.status === 'active')
+      .map((i) => ({ zoneId: i.zoneId, summary: i.summary, severity: i.severity, status: i.status }));
 
     let data;
     try {
@@ -82,10 +83,11 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data });
-  } catch (err: any) {
+  } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ success: false, error: { code: 'unauthenticated', message: err.message } }, { status: err.status });
     }
-    return NextResponse.json({ success: false, error: { code: 'internal', message: err?.message ?? 'error' } }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'error';
+    return NextResponse.json({ success: false, error: { code: 'internal', message } }, { status: 500 });
   }
 }

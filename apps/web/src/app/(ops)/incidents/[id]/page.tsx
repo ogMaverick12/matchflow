@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { db } from '@/lib/db';
 import { Incident, Dispatch, Report } from '@matchflow/types';
-import { SeverityBadge, AlertTriangle, AlertCircle, CheckCircle } from '@matchflow/ui';
+import { SeverityBadge, RouteCard, AlertTriangle, AlertCircle, CheckCircle } from '@matchflow/ui';
 import { ArrowLeft, UserPlus } from 'lucide-react';
 
 export default function IncidentDetailPage() {
@@ -160,6 +160,17 @@ export default function IncidentDetailPage() {
               {incident.summary}
             </h2>
           </div>
+
+          {/* Responder routing card — shared RouteCard component. Routes field
+              staff to the incident's concourse zone, with congestion level
+              derived from the incident severity. */}
+          <RouteCard
+            destinationName={`${incident.zoneId.replace('_', ' ')} (Level ${incident.level})`}
+            totalTimeSeconds={incident.severity === 'high' ? 240 : incident.severity === 'medium' ? 150 : 90}
+            isAccessible={false}
+            pathNodesCount={3}
+            congestionLevel={incident.severity === 'high' ? 'high' : incident.severity === 'medium' ? 'medium' : 'low'}
+          />
           <span style={{
             fontSize: '12px',
             padding: '4px 12px',

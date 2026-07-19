@@ -148,3 +148,37 @@ export interface SimplifyTextResponse {
     message: string;
   };
 }
+
+// ----------------------------------------------------
+// Egress Ranking Request / Response Contracts
+// ----------------------------------------------------
+
+export interface EgressOption {
+  id: string;
+  name: string;
+  gate: string;
+  type: 'transit' | 'rideshare' | 'walk';
+  estimatedMinutes: number;
+  currentQueueScore: number;
+  sustainabilityScore: number;
+}
+
+export interface RankEgressRequest {
+  sessionId: string;
+  userId: string;
+  role: UserRole;
+  zoneScores: Record<string, number>;
+  options: EgressOption[];
+}
+
+export interface RankEgressResponse {
+  success: boolean;
+  data?: {
+    rankedOptions: Array<{ id: string; rank: number; rationale: string; recommended: boolean }>;
+    summary: string;
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+}

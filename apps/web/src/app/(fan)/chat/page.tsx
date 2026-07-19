@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSession } from '@/context/SessionContext';
 import { useSearchParams } from 'next/navigation';
 import { ConciergeResponseData } from '@matchflow/flow-engine';
-import { RouteCard, Info, AlertCircle } from '@matchflow/ui';
+import { RouteCard, SeverityBadge, Info, AlertCircle } from '@matchflow/ui';
 import { db, runSimulatorTick, askConcierge } from '@/lib/db';
 import { Send, User, Bot, Mic, MicOff } from 'lucide-react';
 import { logEvent, classifyQuery } from '@/lib/analytics';
@@ -364,6 +364,7 @@ function ChatContent() {
                         alignItems: 'center',
                         gap: '8px'
                       }}>
+                      <SeverityBadge severity="high" />
                       <span aria-hidden="true">♿</span>
                       <span>No accessible path currently available for this route. All connecting paths use stairs or escalators. Please speak to a stadium staff member for assisted navigation.</span>
                     </div>

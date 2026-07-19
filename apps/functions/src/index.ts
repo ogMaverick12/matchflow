@@ -1,17 +1,19 @@
 ﻿import * as admin from 'firebase-admin';
 import { onCall } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import { 
-  AskConciergeRequest, 
-  AskConciergeResponse, 
-  SuggestDispatchRequest, 
+import {
+  AskConciergeRequest,
+  AskConciergeResponse,
+  SuggestDispatchRequest,
   SuggestDispatchResponse,
   SimplifyTextRequest,
   SimplifyTextResponse,
+  RankEgressRequest,
+  RankEgressResponse,
   Report,
   Incident
 } from '@matchflow/types';
-import { askFlowEngine, rankDispatches } from '@matchflow/flow-engine';
+import { askFlowEngine, rankDispatches, RosterItem } from '@matchflow/flow-engine';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 admin.initializeApp();
@@ -373,7 +375,7 @@ Roster list: ${JSON.stringify(data.roster)}`;
   }
 
   // Deterministic fallback (proximity-based zone matching)
-  const suggestions = rankDispatches(data.incidentId, incident.zoneId, data.roster as any);
+  const suggestions = rankDispatches(data.incidentId, incident.zoneId, data.roster as RosterItem[]);
   return { success: true, data: { suggestions } };
 });
 
@@ -433,36 +435,6 @@ Use short sentences, clear nouns, and bullet points. Preserve all core direction
 // Â§13: Hard 4-second timeout â†’ deterministic comparison fallback.
 // Â§12: Zone data is structured context, not user input, so no injection risk.
 // ----------------------------------------------------
-export interface RankEgressRequest {
-  sessionId: string;
-  userId: string;
-  role: string;
-  zoneScores: Record<string, number>; // e.g. { Zone_A: 0.32, Zone_C: 0.88 }
-  options: Array<{
-    id: string;
-    name: string;
-    gate: string;
-    type: 'transit' | 'rideshare' | 'walk';
-    estimatedMinutes: number;
-    currentQueueScore: number;   // 0â€“1
-    sustainabilityScore: number; // 0â€“1 (higher = greener)
-  }>;
-}
-
-export interface RankEgressResponse {
-  success: boolean;
-  data?: {
-    rankedOptions: Array<{
-      id: string;
-      rank: number;
-      rationale: string;
-      recommended: boolean;
-    }>;
-    summary: string;
-  };
-  error?: { code: string; message: string };
-}
-
 const TIMEOUT_EGRESS_MS = 4_000;
 
 export const rankEgressOptions = onCall<RankEgressRequest, Promise<RankEgressResponse>>(async (request) => {
