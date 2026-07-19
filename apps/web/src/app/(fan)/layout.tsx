@@ -13,7 +13,13 @@ export default function FanLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { session, simulateOffline } = useSession();
+  const { session, simulateOffline, ensureFanSession } = useSession();
+
+  // Mint a signed fan session (httpOnly cookie) on first fan load so the
+  // concierge + public reads are authorized server-side.
+  useEffect(() => {
+    ensureFanSession();
+  }, [ensureFanSession]);
 
   // §6 §16: Start the seeded congestion simulation engine on first fan page load.
   // The simulator drives CongestionZone.densityScore on an 8-second tick,

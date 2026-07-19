@@ -142,6 +142,22 @@ const TOOLS = [{
 const CONCIERGE_TIMEOUT_MS = 12_000;
 const GROUNDING_TIMEOUT_MS = 8_000;
 
+// Wraps fetch so the response body is ALWAYS fully consumed before the
+// Response is handed back. An undrained Gemini response body can leave an
+// undici socket that emits an unhandled 'error' and poisons the host worker,
+// causing unrelated subsequent requests to 500. By reading the body to
+// completion and returning a fresh Response, the upstream socket is released
+// cleanly on every code path (ok, non-ok, abort, error).
+async function safeFetch(url: string, init: any): Promise<Response> {
+  const res = await fetch(url, { ...init, keepalive: false });
+  const buf = await res.arrayBuffer().catch(() => new ArrayBuffer(0));
+  return new Response(buf, {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
+}
+
 function detectLanguage(query: string, lang: string): string {
   const q = query.toLowerCase();
   if (q.includes('donde') || q.includes('baño') || q.includes('puerta')) return 'es';
@@ -233,7 +249,7 @@ async function groundWithGemini(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), GROUNDING_TIMEOUT_MS);
   try {
-    const res = await fetch(
+    const res = await safeFetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
@@ -278,7 +294,7 @@ async function callGemini(
   const timer = setTimeout(() => ctrl.abort(), CONCIERGE_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(
+    res = await safeFetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
@@ -303,7 +319,13 @@ async function callGemini(
   clearTimeout(timer);
   if (!res.ok) return null;
 
-  const data: any = await res.json();
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    // Non-JSON / malformed Gemini response — degrade to deterministic router.
+    return null;
+  }
   const part = data?.candidates?.[0]?.content?.parts?.[0];
 
   if (part?.functionCall) {

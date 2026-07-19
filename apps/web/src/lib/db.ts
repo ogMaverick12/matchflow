@@ -20,6 +20,7 @@ import { askFlowEngine, ConciergeResponseData, rankEgressOptions as flowRankEgre
 async function apiGet<T>(coll: string): Promise<T> {
   const res = await fetch(`/api/db?coll=${coll}`);
   const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`);
   return json.data as T;
 }
 
@@ -30,6 +31,7 @@ async function apiPost(body: any) {
     body: JSON.stringify(body),
   });
   const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`);
   return json.data;
 }
 
@@ -50,38 +52,21 @@ async function apiConcierge(req: Parameters<typeof askFlowEngine>[0], congestion
 }
 
 // ---------------------------------------------------------------------------
-// Client-side RBAC mirror (server is authoritative via KV + API checks)
+// Client-side RBAC mirror (shared matrix; server is authoritative)
 // ---------------------------------------------------------------------------
+import { enforceClient, Role as RbacRole } from '@/lib/rbac';
+
 function enforceRules(
   role: UserRole,
   action: 'read' | 'write',
   collection: 'sessions' | 'reports' | 'incidents' | 'dispatches' | 'concourseGraph' | 'congestionState',
   documentAuthorId?: string
 ) {
-  if (role === 'organizer') return;
-  if (collection === 'concourseGraph' || collection === 'congestionState') {
-    if (action === 'write') throw new Error(`Permission Denied: role ${role} cannot write to ${collection}`);
-    return;
-  }
-  if (collection === 'sessions') return;
-  if (collection === 'incidents' || collection === 'dispatches') {
-    if (role === 'staff') return;
-    throw new Error(`Permission Denied: role ${role} cannot access ${collection}.`);
-  }
-  if (collection === 'reports') {
-    if (action === 'write') {
-      if (role === 'volunteer' || role === 'staff') return;
-      throw new Error(`Permission Denied: role ${role} cannot create reports.`);
-    }
-    if (action === 'read') {
-      if (role === 'staff') return;
-      if (role === 'volunteer') {
-        if (documentAuthorId && documentAuthorId === 'me') return;
-        throw new Error('Permission Denied: volunteer can only read own reports.');
-      }
-      throw new Error(`Permission Denied: role ${role} cannot read reports.`);
-    }
-  }
+  // The shared matrix uses Role/Collection; map our local UserRole + action.
+  enforceClient(role as RbacRole, action as any, collection as any, {
+    documentAuthorId,
+    requestUserId: 'me'
+  });
 }
 
 // ---------------------------------------------------------------------------

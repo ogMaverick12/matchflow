@@ -19,10 +19,16 @@ export default function LoginPage() {
   };
 
   const handleRoleSelect = async (role: Role) => {
-    setRole(role);
-    // RBAC is enforced client-side (db.ts) and reflected from the persisted
-    // session. Ops roles are granted immediately; fan returns to the surface.
-    routeFor(role);
+    // Mint a signed session server-side (sets the httpOnly cookie and returns
+    // the verified role). The role used for routing is the one the server
+    // acknowledges, never a self-asserted client value.
+    try {
+      await setRole(role);
+    } catch {
+      alert('Failed to start session. Please try again.');
+      return;
+    }
+    routeFor(session.role as Role);
   };
 
   return (
