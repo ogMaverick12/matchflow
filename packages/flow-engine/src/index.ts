@@ -111,7 +111,16 @@ const SYSTEM = `You are a wayfinding concierge assistant for the Mercedes-Benz S
 You only answer questions about concourse gates, restrooms, food concessions, seating sections, and stadium transit.
 If the question is out of scope (general knowledge, news, coding, other stadiums), refuse politely but firmly.
 Respond in the user's language (auto-detect). If the input is Arabic, format naturally in Arabic.
-When recommending routes or locations you MUST use one of the tools provided: routeLookup, gateLookup, or incidentStatusLookup.`;
+When recommending routes or locations you MUST use one of the tools provided: routeLookup, gateLookup, or incidentStatusLookup.
+
+ACCESSIBLE ROUTING FAILURE — MUST OBEY EXACTLY:
+If the user requests mobility-accessible routing (routeLookup is called with mobilityRequired: true) and the only path between the requested locations uses non-accessible edges (stairs or escalators), the routeLookup tool will return an error of "NO_ACCESSIBLE_PATH". In that case you MUST respond with the following EXACT message, in the user's language, and you must NOT substitute, translate loosely, paraphrase, or invent any alternative route:
+- English (default): "No accessible path currently available for this route. All connecting paths use stairs or escalators. Please speak to a stadium staff member for assisted navigation."
+- Spanish: "No hay ruta accesible disponible actualmente para este trayecto. Todos los caminos de conexión tienen escaleras o escaleras mecánicas. Por favor, consulte a un miembro del personal del estadio."
+- French: "Aucun chemin accessible n'est disponible pour ce trajet. Toutes les connexions comportent des escaliers ou des escalators. Veuillez vous adresser à un membre du personnel du stade."
+- Portuguese: "Não há caminho acessível disponível para este percurso. Todos os caminhos de ligação têm escadas ou escadas rolantes. Por favor, consulte um membro do pessoal do estádio."
+- Arabic: "لا يوجد مسار متاح حاليًا لهذا الطريق. جميع المسارات تحتوي على سلالم أو سلالم متحركة. يرجى التحدث إلى أحد موظفي الملعب للحصول على مساعدة في التنقل."
+This is a hard requirement: never silently fall back to a non-accessible route, and never return a generic or apologetic error instead of the message above.`;
 
 const TOOLS = [{
   name: 'routeLookup',
@@ -171,6 +180,25 @@ function detectLanguage(query: string, lang: string): string {
   return lang || 'en';
 }
 
+// §9: The single canonical NO_ACCESSIBLE_PATH message. Returned verbatim so the
+// explicit-failure case holds whether the engine is running its deterministic
+// router OR a live Gemini function-call (the tool signals NO_ACCESSIBLE_PATH and
+// this exact localized string is surfaced). Never a silent route or generic error.
+export function noAccessiblePathMessage(lang: string): string {
+  switch (lang) {
+    case 'es':
+      return 'No hay ruta accesible disponible actualmente para este trayecto. Todos los caminos de conexión tienen escaleras o escaleras mecánicas. Por favor, consulte a un miembro del personal del estadio.';
+    case 'fr':
+      return "Aucun chemin accessible n'est disponible pour ce trajet. Toutes les connexions comportent des escaliers ou des escalators. Veuillez vous adresser à un membre du personnel du stade.";
+    case 'pt':
+      return 'Não há caminho acessível disponível para este percurso. Todos os caminhos de ligação têm escadas ou escadas rolantes. Por favor, consulte um membro do pessoal do estádio.';
+    case 'ar':
+      return 'لا يوجد مسار متاح حاليًا لهذا الطريق. جميع المسارات تحتوي على سلالم أو سلالم متحركة. يرجى التحدث إلى أحد موظفي الملعب للحصول على مساعدة في التنقل.';
+    default:
+      return 'No accessible path currently available for this route. All connecting paths use stairs or escalators. Please speak to a stadium staff member for assisted navigation.';
+  }
+}
+
 // Single tool-execution path. zoneCongestion is forwarded to findShortestPath;
 // incidents are used verbatim (no fabricated status strings).
 function executeTool(
@@ -185,12 +213,9 @@ function executeTool(
       zoneCongestion
     });
     if (route.error) {
-      return {
-        error:
-          route.error === 'NO_ACCESSIBLE_PATH'
-            ? 'No accessible path: all connecting routes use stairs or escalators.'
-            : 'No route found between these locations.'
-      };
+      // Surface the canonical error code so the caller (callGemini) can emit the
+      // exact localized NO_ACCESSIBLE_PATH message — never a paraphrased string.
+      return { error: route.error === 'NO_ACCESSIBLE_PATH' ? 'NO_ACCESSIBLE_PATH' : 'NO_ROUTE' };
     }
     return { path: route.path, totalTimeSeconds: route.totalTimeSeconds };
   }
@@ -344,7 +369,13 @@ async function callGemini(
     const detectedLanguage = detectLanguage(req.query, req.language);
 
     if (toolResult.error) {
-      return { answerText: toolResult.error, detectedLanguage };
+      // §9: When the only route uses non-accessible edges while mobility routing
+      // is required, return the exact localized failure message — no silent
+      // fallback, no generic error.
+      if (toolResult.error === 'NO_ACCESSIBLE_PATH') {
+        return { answerText: noAccessiblePathMessage(detectedLanguage), detectedLanguage };
+      }
+      return { answerText: 'No route found between these locations.', detectedLanguage };
     }
 
     // Ground the tool result into natural language (mirrors the Firebase
@@ -390,16 +421,7 @@ function deterministicRoute(
 
     // §9: Never silently fall back to a non-accessible route.
     if (routeResult.error === 'NO_ACCESSIBLE_PATH') {
-      const t = detectedLanguage === 'es'
-        ? 'No hay ruta accesible disponible actualmente para este trayecto. Todos los caminos de conexión tienen escaleras o escaleras mecánicas. Por favor, consulte a un miembro del personal del estadio.'
-        : detectedLanguage === 'fr'
-        ? "Aucun chemin accessible n'est disponible pour ce trajet. Toutes les connexions comportent des escaliers ou des escalators. Veuillez vous adresser à un membre du personnel du stade."
-        : detectedLanguage === 'pt'
-        ? 'Não há caminho acessível disponível para este percurso. Todos os caminhos de ligação têm escadas ou escadas rolantes. Por favor, consulte um membro do pessoal do estádio.'
-        : detectedLanguage === 'ar'
-        ? 'لا يوجد مسار متاح حاليًا لهذا الطريق. جميع المسارات تحتوي على سلالم أو سلالم متحركة. يرجى التحدث إلى أحد موظفي الملعب للحصول على مساعدة في التنقل.'
-        : 'No accessible path currently available for this route. All connecting paths use stairs or escalators. Please speak to a stadium staff member for assisted navigation.';
-      return { answerText: t, detectedLanguage };
+      return { answerText: noAccessiblePathMessage(detectedLanguage), detectedLanguage };
     }
 
     if (!routeResult.error) {
