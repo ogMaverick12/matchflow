@@ -1,8 +1,8 @@
 {
   "name": "@matchflow/ui",
   "version": "1.0.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
   "scripts": {
     "build": "tsc"
   },
