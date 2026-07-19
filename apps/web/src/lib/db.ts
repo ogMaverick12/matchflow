@@ -187,15 +187,23 @@ export async function updateDispatchStatus(
 // ---------------------------------------------------------------------------
 // Congestion write (organizer-only)
 // ---------------------------------------------------------------------------
+// Delegates to the deterministic, seeded server simulator. Passing `tick`
+// (and/or `reset`) lets the route generate a reproducible density sequence
+// (§16); `scores` override manually when provided. The client never computes
+// its own random walk — that lives in apps/web/app/api/simulate/route.ts.
 export async function writeCongestionBatch(
-  updates: Array<Pick<CongestionZone, 'zoneId' | 'densityScore' | 'lastUpdated' | 'trend'>>
+  updates?: Array<Pick<CongestionZone, 'zoneId' | 'densityScore'>>,
+  opts?: { tick?: number; reset?: boolean }
 ): Promise<void> {
-  const scores: Record<string, number> = {};
-  for (const u of updates) scores[u.zoneId] = u.densityScore;
+  let scores: Record<string, number> | undefined;
+  if (updates && updates.length > 0) {
+    scores = {};
+    for (const u of updates) scores[u.zoneId] = u.densityScore;
+  }
   await fetch('/api/simulate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ scores }),
+    body: JSON.stringify({ scores, tick: opts?.tick, reset: opts?.reset }),
   });
 }
 
