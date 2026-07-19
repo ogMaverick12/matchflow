@@ -1,0 +1,5 @@
+node_modules/
+.next/
+dist/
+emulator-data/
+*.log

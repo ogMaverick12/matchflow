@@ -23,7 +23,8 @@ async function readCollection(coll: string): Promise<unknown[]> {
   try {
     const v = await kv.get(coll);
     return Array.isArray(v) ? v : [];
-  } catch {
+  } catch (err) {
+    console.warn(`[readCollection] KV read failed for ${coll}, returning empty:`, err);
     return [];
   }
 }
@@ -34,29 +35,41 @@ export async function POST(req: NextRequest) {
     const claims = await verifySession(token);
     if (!claims) {
       return NextResponse.json(
-        { success: false, error: { code: 'unauthenticated', message: 'Missing or invalid session token.' } },
-        { status: 401 }
+        {
+          success: false,
+          error: { code: 'unauthenticated', message: 'Missing or invalid session token.' },
+        },
+        { status: 401 },
       );
     }
 
     const body = (await req.json()) as Partial<AskConciergeRequest>;
     if (!body?.query) {
-      return NextResponse.json({ success: false, error: { code: 'invalid-argument', message: 'Missing query.' } }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: { code: 'invalid-argument', message: 'Missing query.' } },
+        { status: 400 },
+      );
     }
 
     // Live grounding context from the shared store (Vercel KV / Upstash).
     const [zones, incidents] = await Promise.all([
       readCollection('congestionState'),
-      readCollection('incidents')
+      readCollection('incidents'),
     ]);
 
     const zoneCongestion: Record<string, number> = {};
     for (const z of zones as CongestionRow[]) {
-      if (z?.zoneId && typeof z.densityScore === 'number') zoneCongestion[z.zoneId] = z.densityScore;
+      if (z?.zoneId && typeof z.densityScore === 'number')
+        zoneCongestion[z.zoneId] = z.densityScore;
     }
     const activeIncidents: IncidentRow[] = (incidents as IncidentRow[])
       .filter((i) => i?.status === 'active')
-      .map((i) => ({ zoneId: i.zoneId, summary: i.summary, severity: i.severity, status: i.status }));
+      .map((i) => ({
+        zoneId: i.zoneId,
+        summary: i.summary,
+        severity: i.severity,
+        status: i.status,
+      }));
 
     let data;
     try {
@@ -67,27 +80,38 @@ export async function POST(req: NextRequest) {
           userId: claims.userId,
           role: claims.role as Role,
           language: body.language || 'en',
-          accessibilityMode: body.accessibilityMode || { mobilityRouting: false, highContrast: false, simplifiedLanguage: false }
+          accessibilityMode: body.accessibilityMode || {
+            mobilityRouting: false,
+            highContrast: false,
+            simplifiedLanguage: false,
+          },
         },
         zoneCongestion,
-        { incidents: activeIncidents }
+        { incidents: activeIncidents },
       );
-    } catch {
+    } catch (err) {
+      console.warn('[concierge] Flow engine call failed, returning fallback response:', err);
       // Graceful degradation: if the engine/LLM call fails, return a safe
       // deterministic notice rather than 500ing the request.
       data = {
         answerText:
           "I'm sorry, the concierge is temporarily unavailable. Please check the live concourse map for wayfinding and congestion updates.",
-        detectedLanguage: body.language || 'en'
+        detectedLanguage: body.language || 'en',
       };
     }
 
     return NextResponse.json({ success: true, data });
   } catch (err) {
     if (err instanceof AuthError) {
-      return NextResponse.json({ success: false, error: { code: 'unauthenticated', message: err.message } }, { status: err.status });
+      return NextResponse.json(
+        { success: false, error: { code: 'unauthenticated', message: err.message } },
+        { status: err.status },
+      );
     }
     const message = err instanceof Error ? err.message : 'error';
-    return NextResponse.json({ success: false, error: { code: 'internal', message } }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: { code: 'internal', message } },
+      { status: 500 },
+    );
   }
 }

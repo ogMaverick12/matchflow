@@ -29,9 +29,9 @@ const DEFAULT_SESSION = (): Session => ({
   accessibilityMode: {
     mobilityRouting: false,
     highContrast: false,
-    simplifiedLanguage: false
+    simplifiedLanguage: false,
   },
-  lastActive: Date.now()
+  lastActive: Date.now(),
 });
 
 // Persisted PREFERENCES only (language, accessibility) — never the role.
@@ -41,21 +41,23 @@ function loadPrefs(): Partial<Session> {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) return JSON.parse(raw) as Partial<Session>;
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.warn('[loadPrefs] Failed to parse saved preferences:', err);
+  }
   return {};
 }
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session>(() => ({
     ...DEFAULT_SESSION(),
-    ...loadPrefs()
+    ...loadPrefs(),
   }));
 
   const [simulateOffline, setSimulateOffline] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const updateSession = (updater: (prev: Session) => Session) => {
-    setSession(prev => {
+    setSession((prev) => {
       const next = updater(prev);
       // Persist only non-authoritative preferences.
       const { language, accessibilityMode } = next;
@@ -77,18 +79,21 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const json = await res.json();
         if (!json?.authenticated || !json?.session) return;
         if (cancelled) return;
-        updateSession(prev => ({
+        updateSession((prev) => ({
           ...prev,
           role: json.session.role,
           userId: json.session.userId,
           sessionId: json.session.userId,
-          lastActive: Date.now()
+          lastActive: Date.now(),
         }));
-      } catch {
-        /* non-fatal: stays on default fan session */
+      } catch (err) {
+        // Non-fatal: stays on default fan session
+        console.warn('[SessionProvider] Failed to sync server session:', err);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Sync high contrast and language RTL to document root
@@ -117,26 +122,26 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const res = await fetch('/api/auth/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, userId })
+      body: JSON.stringify({ role, userId }),
     });
     const json = await res.json();
     if (!json?.success) {
       throw new Error('Failed to issue session');
     }
-    updateSession(prev => ({
+    updateSession((prev) => ({
       ...prev,
       role: json.session.role,
       userId: json.session.userId,
       sessionId: json.session.userId,
-      lastActive: Date.now()
+      lastActive: Date.now(),
     }));
   };
 
-  const setLanguage = (language: string) => updateSession(prev => ({ ...prev, language }));
+  const setLanguage = (language: string) => updateSession((prev) => ({ ...prev, language }));
   const setAccessibilityMode = (mode: Partial<Session['accessibilityMode']>) =>
-    updateSession(prev => ({
+    updateSession((prev) => ({
       ...prev,
-      accessibilityMode: { ...prev.accessibilityMode, ...mode }
+      accessibilityMode: { ...prev.accessibilityMode, ...mode },
     }));
 
   // Fans need a signed session too (the concierge + public reads require the
@@ -146,22 +151,25 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (session.userId) return;
     try {
       await setRole('fan');
-    } catch {
-      /* non-fatal: concierge calls degrade to the local fallback */
+    } catch (err) {
+      // Non-fatal: concierge calls degrade to the local fallback
+      console.warn('[ensureFanSession] Failed to mint fan session:', err);
     }
   };
 
   return (
-    <SessionContext.Provider value={{
-      session,
-      setRole,
-      ensureFanSession,
-      setLanguage,
-      setAccessibilityMode,
-      simulateOffline,
-      setSimulateOffline,
-      loading
-    }}>
+    <SessionContext.Provider
+      value={{
+        session,
+        setRole,
+        ensureFanSession,
+        setLanguage,
+        setAccessibilityMode,
+        simulateOffline,
+        setSimulateOffline,
+        loading,
+      }}
+    >
       {children}
     </SessionContext.Provider>
   );

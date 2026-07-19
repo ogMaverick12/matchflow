@@ -24,9 +24,13 @@ export default function FanHomePage() {
           textAlign: 'center',
           background: 'linear-gradient(to bottom, rgba(30, 41, 59, 0.4), var(--bg-base))',
           marginBottom: '24px',
-        }}>
+        }}
+      >
         {/* §9: h2 — stadium name is a section heading under the page h1 */}
-        <h2 className="display-title" style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0' }}>
+        <h2
+          className="display-title"
+          style={{ fontSize: '28px', fontWeight: 'bold', margin: '0 0 8px 0' }}
+        >
           Mercedes-Benz Stadium
         </h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: '0 0 16px 0' }}>
@@ -48,8 +52,9 @@ export default function FanHomePage() {
             padding: '6px 16px',
             borderRadius: '20px',
             fontSize: '13px',
-            fontWeight: 'bold'
-          }}>
+            fontWeight: 'bold',
+          }}
+        >
           <Activity size={14} aria-hidden="true" />
           <span>Semifinal Matchday: USA vs Germany</span>
         </div>
@@ -68,13 +73,30 @@ export default function FanHomePage() {
             gap: '16px',
             padding: '16px',
             textDecoration: 'none',
-            color: 'var(--text-primary)'
-          }}>
-          <div aria-hidden="true" style={{ padding: '12px', backgroundColor: 'rgba(251, 191, 36, 0.1)', border: '1px solid var(--border-color)', borderRadius: '50%' }}>
+            color: 'var(--text-primary)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              padding: '12px',
+              backgroundColor: 'rgba(251, 191, 36, 0.1)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '50%',
+            }}
+          >
             <MessageSquare color="var(--primary-accent)" />
           </div>
           <div>
-            <p style={{ margin: '0 0 4px 0', fontSize: '17px', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-primary)' }}>
+            <p
+              style={{
+                margin: '0 0 4px 0',
+                fontSize: '17px',
+                fontWeight: 'bold',
+                fontFamily: "'Space Grotesk', sans-serif",
+                color: 'var(--text-primary)',
+              }}
+            >
               Ask Wayfinding AI
             </p>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -93,13 +115,30 @@ export default function FanHomePage() {
             gap: '16px',
             padding: '16px',
             textDecoration: 'none',
-            color: 'var(--text-primary)'
-          }}>
-          <div aria-hidden="true" style={{ padding: '12px', backgroundColor: 'rgba(251, 191, 36, 0.1)', border: '1px solid var(--border-color)', borderRadius: '50%' }}>
+            color: 'var(--text-primary)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              padding: '12px',
+              backgroundColor: 'rgba(251, 191, 36, 0.1)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '50%',
+            }}
+          >
             <Map color="var(--primary-accent)" />
           </div>
           <div>
-            <p style={{ margin: '0 0 4px 0', fontSize: '17px', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-primary)' }}>
+            <p
+              style={{
+                margin: '0 0 4px 0',
+                fontSize: '17px',
+                fontWeight: 'bold',
+                fontFamily: "'Space Grotesk', sans-serif",
+                color: 'var(--text-primary)',
+              }}
+            >
               Live Congestion Map
             </p>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -118,13 +157,30 @@ export default function FanHomePage() {
             gap: '16px',
             padding: '16px',
             textDecoration: 'none',
-            color: 'var(--text-primary)'
-          }}>
-          <div aria-hidden="true" style={{ padding: '12px', backgroundColor: 'rgba(251, 191, 36, 0.1)', border: '1px solid var(--border-color)', borderRadius: '50%' }}>
+            color: 'var(--text-primary)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              padding: '12px',
+              backgroundColor: 'rgba(251, 191, 36, 0.1)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '50%',
+            }}
+          >
             <Navigation color="var(--primary-accent)" />
           </div>
           <div>
-            <p style={{ margin: '0 0 4px 0', fontSize: '17px', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-primary)' }}>
+            <p
+              style={{
+                margin: '0 0 4px 0',
+                fontSize: '17px',
+                fontWeight: 'bold',
+                fontFamily: "'Space Grotesk', sans-serif",
+                color: 'var(--text-primary)',
+              }}
+            >
               Post-Match Transit Planner
             </p>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -138,8 +194,20 @@ export default function FanHomePage() {
           One-tap common queries that skip the chat interface entirely.
           Each button navigates to /chat?q=<prefilled query> which the chat page
           reads via useSearchParams() and auto-submits immediately. */}
-      <section aria-labelledby="quick-queries-heading" className="glass-panel" style={{ padding: '16px', marginBottom: '24px' }}>
-        <h2 id="quick-queries-heading" style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif" }}>
+      <section
+        aria-labelledby="quick-queries-heading"
+        className="glass-panel"
+        style={{ padding: '16px', marginBottom: '24px' }}
+      >
+        <h2
+          id="quick-queries-heading"
+          style={{
+            margin: '0 0 12px 0',
+            fontSize: '15px',
+            fontWeight: 'bold',
+            fontFamily: "'Space Grotesk', sans-serif",
+          }}
+        >
           Quick Queries
         </h2>
         <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -147,10 +215,13 @@ export default function FanHomePage() {
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           {[
-            { label: '🚻 Nearest Restroom',    q: 'Where is the nearest restroom?' },
-            { label: '🍔 Food & Drinks',        q: 'Where can I get food and drinks?' },
-            { label: '🏟️ My Gate (Section 101)', q: 'How do I get to Gate 1 from the main entrance?' },
-            { label: '♿ Accessible Route',     q: 'What is the accessible route to my seat?' },
+            { label: '🚻 Nearest Restroom', q: 'Where is the nearest restroom?' },
+            { label: '🍔 Food & Drinks', q: 'Where can I get food and drinks?' },
+            {
+              label: '🏟️ My Gate (Section 101)',
+              q: 'How do I get to Gate 1 from the main entrance?',
+            },
+            { label: '♿ Accessible Route', q: 'What is the accessible route to my seat?' },
           ].map(({ label, q }) => (
             <Link
               key={q}
@@ -179,10 +250,21 @@ export default function FanHomePage() {
         </div>
       </section>
 
-
       {/* §9: Offline simulation control — h2 section, button with aria-pressed */}
-      <section aria-labelledby="offline-sim-heading" className="glass-panel" style={{ padding: '16px', marginBottom: '24px' }}>
-        <h2 id="offline-sim-heading" style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif" }}>
+      <section
+        aria-labelledby="offline-sim-heading"
+        className="glass-panel"
+        style={{ padding: '16px', marginBottom: '24px' }}
+      >
+        <h2
+          id="offline-sim-heading"
+          style={{
+            margin: '0 0 8px 0',
+            fontSize: '15px',
+            fontWeight: 'bold',
+            fontFamily: "'Space Grotesk', sans-serif",
+          }}
+        >
           Offline Simulation Test
         </h2>
         <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -191,7 +273,11 @@ export default function FanHomePage() {
         <button
           onClick={() => setSimulateOffline(!simulateOffline)}
           aria-pressed={simulateOffline}
-          aria-label={simulateOffline ? 'Go online — currently in offline simulation mode' : 'Simulate offline mode'}
+          aria-label={
+            simulateOffline
+              ? 'Go online — currently in offline simulation mode'
+              : 'Simulate offline mode'
+          }
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -199,13 +285,20 @@ export default function FanHomePage() {
             padding: '10px 16px',
             borderRadius: '6px',
             border: simulateOffline ? '1px solid #ef4444' : '1px solid var(--border-color)',
-            backgroundColor: simulateOffline ? 'rgba(239, 68, 68, 0.15)' : 'var(--bg-surface-elevated)',
+            backgroundColor: simulateOffline
+              ? 'rgba(239, 68, 68, 0.15)'
+              : 'var(--bg-surface-elevated)',
             color: simulateOffline ? '#ef4444' : 'var(--text-primary)',
             fontWeight: 'bold',
             fontSize: '14px',
-            transition: 'background-color 200ms ease'
-          }}>
-          {simulateOffline ? <WifiOff size={16} aria-hidden="true" /> : <Wifi size={16} aria-hidden="true" />}
+            transition: 'background-color 200ms ease',
+          }}
+        >
+          {simulateOffline ? (
+            <WifiOff size={16} aria-hidden="true" />
+          ) : (
+            <Wifi size={16} aria-hidden="true" />
+          )}
           <span>{simulateOffline ? 'Go Online' : 'Simulate Offline'}</span>
         </button>
       </section>
@@ -224,8 +317,9 @@ export default function FanHomePage() {
             backgroundColor: 'var(--bg-surface)',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '8px'
-          }}>
+            gap: '8px',
+          }}
+        >
           <ShieldAlert size={14} aria-hidden="true" />
           <span>Go to Operations Console Login</span>
         </Link>

@@ -1,9 +1,21 @@
+/** User role within the stadium — determines access level and routing behavior. */
 export type UserRole = 'fan' | 'volunteer' | 'staff' | 'organizer';
 
+export * from './constants';
+
+/** A navigable location in the stadium concourse graph (gate, restroom, concession, etc.). */
 export interface ConcourseNode {
   id: string;
   name: string;
-  type: 'gate' | 'restroom' | 'concession' | 'exit' | 'seatingBlock' | 'elevator' | 'escalator' | 'junction';
+  type:
+    | 'gate'
+    | 'restroom'
+    | 'concession'
+    | 'exit'
+    | 'seatingBlock'
+    | 'elevator'
+    | 'escalator'
+    | 'junction';
   zone: string;
   level: '100' | '200' | '300';
   accessibilityTags: ('elevatorAdjacent' | 'rampAccess' | 'accessibleSeating')[];
@@ -11,13 +23,16 @@ export interface ConcourseNode {
   y?: number;
 }
 
+/** A directed walkable connection between two concourse nodes. */
 export interface ConcourseEdge {
   fromNodeId: string;
   toNodeId: string;
   walkTimeSeconds: number;
+  /** Whether this edge is usable with mobility-accessible routing. */
   accessible: boolean;
 }
 
+/** Real-time crowd-density reading for a stadium zone. */
 export interface CongestionZone {
   zoneId: string;
   name: string;
@@ -27,6 +42,7 @@ export interface CongestionZone {
   trend: 'up' | 'down' | 'stable';
 }
 
+/** A confirmed incident (hazard, closure, or bottleneck) aggregated from fan reports. */
 export interface Incident {
   id: string;
   sourceReportIds: string[];
@@ -41,6 +57,7 @@ export interface Incident {
   updatedAt: number;
 }
 
+/** An assignment of a staff member or volunteer to respond to an incident. */
 export interface Dispatch {
   id: string;
   incidentId: string;
@@ -52,6 +69,7 @@ export interface Dispatch {
   timestamp: number;
 }
 
+/** An active user session carrying language, role, and accessibility preferences. */
 export interface Session {
   sessionId: string;
   userId: string;
@@ -65,6 +83,7 @@ export interface Session {
   lastActive: number;
 }
 
+/** A crowd-sourced report submitted by a fan, volunteer, or staff member. */
 export interface Report {
   id: string;
   authorId: string;
@@ -81,6 +100,7 @@ export interface Report {
 // Cloud Functions Request / Response Contracts
 // ----------------------------------------------------
 
+/** Request payload for the concierge wayfinding cloud function. */
 export interface AskConciergeRequest {
   query: string;
   sessionId: string;
@@ -94,6 +114,7 @@ export interface AskConciergeRequest {
   };
 }
 
+/** Response from the concierge cloud function containing a navigable answer and optional route. */
 export interface AskConciergeResponse {
   success: boolean;
   data?: {
@@ -111,11 +132,13 @@ export interface AskConciergeResponse {
   };
 }
 
+/** Request payload for the AI dispatch-ranking cloud function. */
 export interface SuggestDispatchRequest {
   incidentId: string;
   roster: { staffId: string; name: string; role: 'volunteer' | 'staff'; zone: string }[];
 }
 
+/** Response from the dispatch-ranking function, returning staff sorted by suitability. */
 export interface SuggestDispatchResponse {
   success: boolean;
   data?: {
@@ -134,10 +157,12 @@ export interface SuggestDispatchResponse {
   };
 }
 
+/** Request payload for the text-simplification function (accessibility feature). */
 export interface SimplifyTextRequest {
   originalText: string;
 }
 
+/** Response from the text-simplification function. */
 export interface SimplifyTextResponse {
   success: boolean;
   data?: {
@@ -153,6 +178,7 @@ export interface SimplifyTextResponse {
 // Egress Ranking Request / Response Contracts
 // ----------------------------------------------------
 
+/** A possible exit option (transit, rideshare, or walk) from the stadium. */
 export interface EgressOption {
   id: string;
   name: string;
@@ -163,6 +189,7 @@ export interface EgressOption {
   sustainabilityScore: number;
 }
 
+/** Request payload for the egress-ranking cloud function. */
 export interface RankEgressRequest {
   sessionId: string;
   userId: string;
@@ -171,6 +198,7 @@ export interface RankEgressRequest {
   options: EgressOption[];
 }
 
+/** Response from the egress-ranking function with options ordered by composite score. */
 export interface RankEgressResponse {
   success: boolean;
   data?: {

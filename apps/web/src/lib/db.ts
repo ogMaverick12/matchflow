@@ -12,7 +12,11 @@
  */
 
 import { UserRole, CongestionZone, Incident, Report, Dispatch } from '@matchflow/types';
-import { askFlowEngine, ConciergeResponseData, rankEgressOptions as flowRankEgress } from '@matchflow/flow-engine';
+import {
+  askFlowEngine,
+  ConciergeResponseData,
+  rankEgressOptions as flowRankEgress,
+} from '@matchflow/flow-engine';
 import { getGraphData } from '@matchflow/concourse-graph';
 
 // The concourse graph is a static module-level singleton (see @matchflow/
@@ -34,7 +38,16 @@ async function apiGet<T>(coll: string): Promise<T> {
   return json.data as T;
 }
 
-async function apiPost(body: any) {
+interface PostRequestBody {
+  coll: string;
+  op: string;
+  doc?: Record<string, unknown>;
+  id?: string;
+  patch?: Record<string, unknown>;
+  rows?: Record<string, unknown>[];
+}
+
+async function apiPost(body: PostRequestBody) {
   const res = await fetch('/api/db', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -45,7 +58,10 @@ async function apiPost(body: any) {
   return json.data;
 }
 
-async function apiConcierge(req: Parameters<typeof askFlowEngine>[0], congestion: Record<string, number>) {
+async function apiConcierge(
+  req: Parameters<typeof askFlowEngine>[0],
+  congestion: Record<string, number>,
+) {
   try {
     const res = await fetch('/api/concierge', {
       method: 'POST',
@@ -56,7 +72,9 @@ async function apiConcierge(req: Parameters<typeof askFlowEngine>[0], congestion
     if (json.success && json.data) {
       return json.data as ConciergeResponseData & { detectedLanguage?: string };
     }
-  } catch { /* fall through */ }
+  } catch (err) {
+    console.warn('[apiConcierge] API call failed, falling back to local engine:', err);
+  }
   const local = await askFlowEngine(req, congestion);
   return { ...local, detectedLanguage: req.language };
 }
@@ -69,14 +87,21 @@ import { enforceClient, Role as RbacRole } from '@/lib/rbac';
 function enforceRules(
   role: UserRole,
   action: 'read' | 'write',
-  collection: 'sessions' | 'reports' | 'incidents' | 'dispatches' | 'concourseGraph' | 'congestionState',
-  documentAuthorId?: string
+  collection:
+    'sessions' | 'reports' | 'incidents' | 'dispatches' | 'concourseGraph' | 'congestionState',
+  documentAuthorId?: string,
 ) {
   // The shared matrix uses Role/Collection; map our local UserRole + action.
-  enforceClient(role as RbacRole, action as any, collection as any, {
-    documentAuthorId,
-    requestUserId: 'me'
-  });
+  enforceClient(
+    role as RbacRole,
+    action as 'read' | 'write',
+    collection as
+      'concourseGraph' | 'congestionState' | 'reports' | 'incidents' | 'dispatches' | 'sessions',
+    {
+      documentAuthorId,
+      requestUserId: 'me',
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +117,7 @@ function subscribeWithDedup<T>(
   fetcher: () => Promise<T>,
   callback: (data: T) => void,
   onError?: (err: Error) => void,
-  intervalMs = 4000
+  intervalMs = 4000,
 ): () => void {
   let alive = true;
   let lastSig = '';
@@ -105,11 +130,16 @@ function subscribeWithDedup<T>(
         lastSig = sig;
         callback(data);
       }
-    } catch (e) { onError?.(e as Error); }
+    } catch (e) {
+      onError?.(e as Error);
+    }
   };
   poll();
   const id = setInterval(poll, intervalMs);
-  return () => { alive = false; clearInterval(id); };
+  return () => {
+    alive = false;
+    clearInterval(id);
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -118,14 +148,15 @@ function subscribeWithDedup<T>(
 export function subscribeToCongestion(
   role: UserRole,
   callback: (zones: CongestionZone[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ): () => void {
-  try { enforceRules(role, 'read', 'congestionState'); } catch (e) { onError?.(e as Error); return () => {}; }
-  return subscribeWithDedup(
-    () => apiGet<CongestionZone[]>('congestionState'),
-    callback,
-    onError
-  );
+  try {
+    enforceRules(role, 'read', 'congestionState');
+  } catch (e) {
+    onError?.(e as Error);
+    return () => {};
+  }
+  return subscribeWithDedup(() => apiGet<CongestionZone[]>('congestionState'), callback, onError);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,28 +166,37 @@ export function subscribeToReports(
   role: UserRole,
   userId: string,
   callback: (reports: Report[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ): () => void {
-  try { enforceRules(role, 'read', 'reports', userId); } catch (e) { onError?.(e as Error); return () => {}; }
+  try {
+    enforceRules(role, 'read', 'reports', userId);
+  } catch (e) {
+    onError?.(e as Error);
+    return () => {};
+  }
   return subscribeWithDedup(
     async () => {
       const all = await apiGet<Report[]>('reports');
-      const filtered = role === 'volunteer' ? all.filter(r => r.authorId === userId) : all;
+      const filtered = role === 'volunteer' ? all.filter((r) => r.authorId === userId) : all;
       // Stable sort so the serialized signature is order-deterministic.
       return filtered.sort((a, b) => b.timestamp - a.timestamp);
     },
     callback,
-    onError
+    onError,
   );
 }
 
 export async function createReport(
   role: UserRole,
-  reportData: Omit<Report, 'id' | 'timestamp'>
+  reportData: Omit<Report, 'id' | 'timestamp'>,
 ): Promise<Report> {
   enforceRules(role, 'write', 'reports');
-  const data = await apiPost({ coll: 'reports', op: 'insert', doc: reportData });
-  return (data as any[])[0];
+  const data = await apiPost({
+    coll: 'reports',
+    op: 'insert',
+    doc: reportData as unknown as Record<string, unknown>,
+  });
+  return (data as Report[])[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -165,9 +205,14 @@ export async function createReport(
 export function subscribeToIncidents(
   role: UserRole,
   callback: (incidents: Incident[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ): () => void {
-  try { enforceRules(role, 'read', 'incidents'); } catch (e) { onError?.(e as Error); return () => {}; }
+  try {
+    enforceRules(role, 'read', 'incidents');
+  } catch (e) {
+    onError?.(e as Error);
+    return () => {};
+  }
   return subscribeWithDedup(
     async () => {
       const all = await apiGet<Incident[]>('incidents');
@@ -175,12 +220,14 @@ export function subscribeToIncidents(
       return [...all].sort((a, b) => a.id.localeCompare(b.id));
     },
     callback,
-    onError
+    onError,
   );
 }
 
 export async function updateIncidentStatus(
-  role: UserRole, incidentId: string, status: Incident['status']
+  role: UserRole,
+  incidentId: string,
+  status: Incident['status'],
 ): Promise<void> {
   enforceRules(role, 'write', 'incidents');
   await apiPost({ coll: 'incidents', op: 'update', id: incidentId, patch: { status } });
@@ -192,9 +239,14 @@ export async function updateIncidentStatus(
 export function subscribeToDispatches(
   role: UserRole,
   callback: (dispatches: Dispatch[]) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ): () => void {
-  try { enforceRules(role, 'read', 'dispatches'); } catch (e) { onError?.(e as Error); return () => {}; }
+  try {
+    enforceRules(role, 'read', 'dispatches');
+  } catch (e) {
+    onError?.(e as Error);
+    return () => {};
+  }
   return subscribeWithDedup(
     async () => {
       const all = await apiGet<Dispatch[]>('dispatches');
@@ -202,20 +254,27 @@ export function subscribeToDispatches(
       return [...all].sort((a, b) => a.id.localeCompare(b.id));
     },
     callback,
-    onError
+    onError,
   );
 }
 
 export async function createDispatch(
-  role: UserRole, dispatchData: Omit<Dispatch, 'id' | 'timestamp'>
+  role: UserRole,
+  dispatchData: Omit<Dispatch, 'id' | 'timestamp'>,
 ): Promise<Dispatch> {
   enforceRules(role, 'write', 'dispatches');
-  const data = await apiPost({ coll: 'dispatches', op: 'insert', doc: dispatchData });
-  return (data as any[])[0];
+  const data = await apiPost({
+    coll: 'dispatches',
+    op: 'insert',
+    doc: dispatchData as unknown as Record<string, unknown>,
+  });
+  return (data as Dispatch[])[0];
 }
 
 export async function updateDispatchStatus(
-  role: UserRole, dispatchId: string, status: Dispatch['status']
+  role: UserRole,
+  dispatchId: string,
+  status: Dispatch['status'],
 ): Promise<void> {
   enforceRules(role, 'write', 'dispatches');
   await apiPost({ coll: 'dispatches', op: 'update', id: dispatchId, patch: { status } });
@@ -230,7 +289,7 @@ export async function updateDispatchStatus(
 // its own random walk — that lives in apps/web/app/api/simulate/route.ts.
 export async function writeCongestionBatch(
   updates?: Array<Pick<CongestionZone, 'zoneId' | 'densityScore'>>,
-  opts?: { tick?: number; reset?: boolean }
+  opts?: { tick?: number; reset?: boolean },
 ): Promise<void> {
   let scores: Record<string, number> | undefined;
   if (updates && updates.length > 0) {
@@ -249,7 +308,7 @@ export async function writeCongestionBatch(
 // ---------------------------------------------------------------------------
 export async function askConcierge(
   req: Parameters<typeof askFlowEngine>[0],
-  congestion: Record<string, number>
+  congestion: Record<string, number>,
 ): Promise<ConciergeResponseData & { detectedLanguage?: string }> {
   return apiConcierge(req, congestion);
 }
@@ -263,7 +322,9 @@ export async function rankEgressOptions(params: Parameters<typeof flowRankEgress
     });
     const json = await res.json();
     if (json.success && json.data) return json;
-  } catch { /* fallback below */ }
+  } catch (err) {
+    console.warn('[rankEgressOptions] API call failed, falling back to local engine:', err);
+  }
   return flowRankEgress(params);
 }
 
@@ -286,7 +347,9 @@ export async function proveFanCannotReadIncidents(): Promise<{ status: number; o
     body: JSON.stringify({ role: 'fan' }),
   });
   const setCookie = sessionRes.headers.get('set-cookie') || '';
-  const match = setCookie.match(/(?:^|;\s*)matchflow_session=([^;]+)/) || setCookie.match(/matchflow_session=([^;,\s]+)/);
+  const match =
+    setCookie.match(/(?:^|;\s*)matchflow_session=([^;]+)/) ||
+    setCookie.match(/matchflow_session=([^;,\s]+)/);
   const fanToken = match ? match[1] : '';
 
   // 2) Attempt the privileged read AS the fan token.
@@ -358,4 +421,3 @@ export const db = {
 // To get true push semantics later, swap subscribeWithDedup for a
 // server-sent-events / websocket subscription backed by the same /api/db
 // source; the change-detection layer can stay as-is.
-

@@ -1,10 +1,12 @@
 import { Metadata, Viewport } from 'next';
 import { SessionProvider } from '@/context/SessionContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Matchflow — FIFA 2026 Smart Stadium Concierge',
-  description: 'Dual-surface crowd intelligence platform for FIFA World Cup 2026 stadium operations.',
+  description:
+    'Dual-surface crowd intelligence platform for FIFA World Cup 2026 stadium operations.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -19,13 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
@@ -41,7 +37,7 @@ export default function RootLayout({
       </head>
       <body>
         <SessionProvider>
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </SessionProvider>
       </body>
     </html>

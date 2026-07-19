@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@vercel/kv';
-import {
-  verifySession,
-  extractToken,
-  AuthError
-} from '@/lib/auth';
+import { verifySession, extractToken, AuthError } from '@/lib/auth';
 import { enforceServer, Role, Collection } from '@/lib/rbac';
 
 // Shared data API — backs the MatchFlow collections (congestionState,
@@ -16,12 +12,40 @@ import { enforceServer, Role, Collection } from '@/lib/rbac';
 
 type Coll = 'congestionState' | 'reports' | 'incidents' | 'dispatches';
 
-const MEM: Record<string, any[]> = {
+const MEM: Record<string, Record<string, unknown>[]> = {
   congestionState: [
-    { zoneId: 'Zone_A', name: 'Zone A (North East)', level: '100', densityScore: 0.25, lastUpdated: Date.now(), trend: 'stable' },
-    { zoneId: 'Zone_B', name: 'Zone B (South East)', level: '100', densityScore: 0.35, lastUpdated: Date.now(), trend: 'stable' },
-    { zoneId: 'Zone_C', name: 'Zone C (South West)', level: '100', densityScore: 0.15, lastUpdated: Date.now(), trend: 'stable' },
-    { zoneId: 'Zone_D', name: 'Zone D (North West)', level: '100', densityScore: 0.20, lastUpdated: Date.now(), trend: 'stable' },
+    {
+      zoneId: 'Zone_A',
+      name: 'Zone A (North East)',
+      level: '100',
+      densityScore: 0.25,
+      lastUpdated: Date.now(),
+      trend: 'stable',
+    },
+    {
+      zoneId: 'Zone_B',
+      name: 'Zone B (South East)',
+      level: '100',
+      densityScore: 0.35,
+      lastUpdated: Date.now(),
+      trend: 'stable',
+    },
+    {
+      zoneId: 'Zone_C',
+      name: 'Zone C (South West)',
+      level: '100',
+      densityScore: 0.15,
+      lastUpdated: Date.now(),
+      trend: 'stable',
+    },
+    {
+      zoneId: 'Zone_D',
+      name: 'Zone D (North West)',
+      level: '100',
+      densityScore: 0.2,
+      lastUpdated: Date.now(),
+      trend: 'stable',
+    },
   ],
   reports: [],
   incidents: [
@@ -52,20 +76,29 @@ const MEM: Record<string, any[]> = {
 // authoritative guard; the KV backend is an availability detail.
 const KV_READY = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
-async function read(coll: Coll): Promise<any[]> {
+async function read(coll: Coll): Promise<Record<string, unknown>[]> {
   if (!KV_READY) return MEM[coll];
-  try { return (await kv.get(coll)) ?? MEM[coll]; } catch { return MEM[coll]; }
+  try {
+    return (await kv.get(coll)) ?? MEM[coll];
+  } catch (err) {
+    console.warn(`[read] KV read failed for ${coll}, using in-memory fallback:`, err);
+    return MEM[coll];
+  }
 }
-async function write(coll: Coll, rows: any[]): Promise<void> {
+async function write(coll: Coll, rows: Record<string, unknown>[]): Promise<void> {
   MEM[coll] = rows;
   if (!KV_READY) return;
-  try { await kv.set(coll, rows); } catch { /* keep MEM */ }
+  try {
+    await kv.set(coll, rows);
+  } catch (err) {
+    console.warn(`[write] KV write failed for ${coll}, keeping in-memory:`, err);
+  }
 }
 
 function unauthorized(err: AuthError) {
   return NextResponse.json(
     { error: err.message, code: err.status === 403 ? 'permission-denied' : 'unauthenticated' },
-    { status: err.status }
+    { status: err.status },
   );
 }
 
@@ -100,7 +133,7 @@ export async function GET(req: NextRequest) {
 
     let data = await read(coll);
     if (coll === 'reports' && claims.role === 'volunteer') {
-      data = data.filter((r: any) => r.authorId === claims.userId);
+      data = data.filter((r) => (r as { authorId?: string }).authorId === claims.userId);
     }
     return NextResponse.json({ data });
   } catch (err) {
@@ -125,11 +158,15 @@ export async function POST(req: NextRequest) {
 
     if (op === 'insert') {
       // For reports, tie the document to the verified author.
-      const doc = { ...body.doc, id: body.doc?.id || `${coll}_${Date.now()}`, timestamp: Date.now() };
+      const doc = {
+        ...body.doc,
+        id: body.doc?.id || `${coll}_${Date.now()}`,
+        timestamp: Date.now(),
+      };
       if (coll === 'reports') doc.authorId = claims.userId;
       enforceServer(claims.role as Role, 'create', matrixColl, {
         documentAuthorId: doc.authorId,
-        requestUserId: claims.userId
+        requestUserId: claims.userId,
       });
       const rows = await read(coll);
       const next = [doc, ...rows];
@@ -140,10 +177,12 @@ export async function POST(req: NextRequest) {
     if (op === 'update') {
       enforceServer(claims.role as Role, 'update', matrixColl, {
         documentAuthorId: body.doc?.authorId,
-        requestUserId: claims.userId
+        requestUserId: claims.userId,
       });
       const rows = await read(coll);
-      const next = rows.map((r: any) => (r.id === body.id ? { ...r, ...body.patch, updatedAt: Date.now() } : r));
+      const next = rows.map((r) =>
+        (r as { id?: string }).id === body.id ? { ...r, ...body.patch, updatedAt: Date.now() } : r,
+      );
       await write(coll, next);
       return NextResponse.json({ data: next });
     }
@@ -151,7 +190,7 @@ export async function POST(req: NextRequest) {
     if (op === 'delete') {
       enforceServer(claims.role as Role, 'delete', matrixColl);
       const rows = await read(coll);
-      const next = rows.filter((r: any) => r.id !== body.id);
+      const next = rows.filter((r) => (r as { id?: string }).id !== body.id);
       await write(coll, next);
       return NextResponse.json({ data: next });
     }
@@ -163,8 +202,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ data: await read(coll) });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof AuthError) return unauthorized(err);
-    return NextResponse.json({ error: 'internal', message: err?.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'internal';
+    return NextResponse.json({ error: 'internal', message }, { status: 500 });
   }
 }

@@ -18,10 +18,10 @@ const EGRESS_OPTIONS = [
     gate: 'Gate 1 (North)',
     type: 'transit' as const,
     estimatedMinutes: 15,
-    currentQueueScore: 0.2,   // updated live from congestion feed
+    currentQueueScore: 0.2, // updated live from congestion feed
     sustainabilityScore: 0.92, // very green — electric rail
     icon: 'train' as const,
-    detail: 'Direct access via Gate 1. Trains every 4 min. Free route guide at concourse.'
+    detail: 'Direct access via Gate 1. Trains every 4 min. Free route guide at concourse.',
   },
   {
     id: 'rideshare_c',
@@ -32,7 +32,7 @@ const EGRESS_OPTIONS = [
     currentQueueScore: 0.78,
     sustainabilityScore: 0.25,
     icon: 'car' as const,
-    detail: 'Rideshare queues delayed — perimeter road traffic. Surge pricing likely.'
+    detail: 'Rideshare queues delayed — perimeter road traffic. Surge pricing likely.',
   },
   {
     id: 'walk_d',
@@ -41,10 +41,10 @@ const EGRESS_OPTIONS = [
     type: 'walk' as const,
     estimatedMinutes: 12,
     currentQueueScore: 0.35,
-    sustainabilityScore: 0.60,
+    sustainabilityScore: 0.6,
     icon: 'walk' as const,
-    detail: 'Short walk to surface lot. Lower congestion than south perimeter.'
-  }
+    detail: 'Short walk to surface lot. Lower congestion than south perimeter.',
+  },
 ];
 
 interface RankedOption {
@@ -81,16 +81,19 @@ export default function ExitPlannerPage() {
     setRankingError(false);
 
     const zoneScores: Record<string, number> = {};
-    zones.forEach(z => { zoneScores[z.zoneId] = z.densityScore; });
+    zones.forEach((z) => {
+      zoneScores[z.zoneId] = z.densityScore;
+    });
 
     // Update queue scores from live congestion data
-    const liveOptions = EGRESS_OPTIONS.map(opt => ({
+    const liveOptions = EGRESS_OPTIONS.map((opt) => ({
       ...opt,
-      currentQueueScore: opt.id === 'marta_rail'
-        ? (zoneScores['Zone_A'] ?? 0.2)
-        : opt.id === 'rideshare_c'
-        ? (zoneScores['Zone_C'] ?? 0.78)
-        : (zoneScores['Zone_D'] ?? 0.35)
+      currentQueueScore:
+        opt.id === 'marta_rail'
+          ? (zoneScores['Zone_A'] ?? 0.2)
+          : opt.id === 'rideshare_c'
+            ? (zoneScores['Zone_C'] ?? 0.78)
+            : (zoneScores['Zone_D'] ?? 0.35),
     }));
 
     const callStart = performance.now();
@@ -101,7 +104,7 @@ export default function ExitPlannerPage() {
         userId: session.userId,
         role: session.role,
         zoneScores,
-        options: liveOptions
+        options: liveOptions,
       });
 
       if (result.success && result.data) {
@@ -124,15 +127,33 @@ export default function ExitPlannerPage() {
       setRankingError(true);
       // §13: Deterministic fallback — sort by combined score
       const sorted = [...EGRESS_OPTIONS].sort((a, b) => {
-        const scoreA = (1 - a.currentQueueScore) * 0.5 + a.sustainabilityScore * 0.3 + (1 - a.estimatedMinutes / 60) * 0.2;
-        const scoreB = (1 - b.currentQueueScore) * 0.5 + b.sustainabilityScore * 0.3 + (1 - b.estimatedMinutes / 60) * 0.2;
+        const scoreA =
+          (1 - a.currentQueueScore) * 0.5 +
+          a.sustainabilityScore * 0.3 +
+          (1 - a.estimatedMinutes / 60) * 0.2;
+        const scoreB =
+          (1 - b.currentQueueScore) * 0.5 +
+          b.sustainabilityScore * 0.3 +
+          (1 - b.estimatedMinutes / 60) * 0.2;
         return scoreB - scoreA;
       });
-      setRankedOptions(sorted.map((o, i) => ({
-        id: o.id, rank: i + 1, rationale: 'Ranked by speed + sustainability.', recommended: i === 0
-      })));
-      setAiSummary(`${sorted[0].name} via ${sorted[0].gate} is the fastest option (est. ${sorted[0].estimatedMinutes} min).`);
-      logEvent({ type: 'fallback_triggered', sessionId: session.sessionId, surface: 'concierge', reason: String(err) });
+      setRankedOptions(
+        sorted.map((o, i) => ({
+          id: o.id,
+          rank: i + 1,
+          rationale: 'Ranked by speed + sustainability.',
+          recommended: i === 0,
+        })),
+      );
+      setAiSummary(
+        `${sorted[0].name} via ${sorted[0].gate} is the fastest option (est. ${sorted[0].estimatedMinutes} min).`,
+      );
+      logEvent({
+        type: 'fallback_triggered',
+        sessionId: session.sessionId,
+        surface: 'concierge',
+        reason: String(err),
+      });
     } finally {
       setIsRanking(false);
     }
@@ -148,21 +169,34 @@ export default function ExitPlannerPage() {
   // ---------------------------------------------------------------------------
   // Helper: get the display option for a ranked entry
   // ---------------------------------------------------------------------------
-  const getOption = (id: string) => EGRESS_OPTIONS.find(o => o.id === id)!;
+  const getOption = (id: string) => EGRESS_OPTIONS.find((o) => o.id === id)!;
   const ranked = rankedOptions
-    ? [...rankedOptions].sort((a, b) => a.rank - b.rank).map(r => ({ ...r, option: getOption(r.id) })).filter(r => r.option)
-    : EGRESS_OPTIONS.map((o, i) => ({ id: o.id, rank: i + 1, rationale: '', recommended: i === 0, option: o }));
+    ? [...rankedOptions]
+        .sort((a, b) => a.rank - b.rank)
+        .map((r) => ({ ...r, option: getOption(r.id) }))
+        .filter((r) => r.option)
+    : EGRESS_OPTIONS.map((o, i) => ({
+        id: o.id,
+        rank: i + 1,
+        rationale: '',
+        recommended: i === 0,
+        option: o,
+      }));
 
   const bestOption = ranked[0]?.option;
-  const zoneACongestion = zones.find(z => z.zoneId === 'Zone_A')?.densityScore ?? 0.2;
-  const zoneCCongestion = zones.find(z => z.zoneId === 'Zone_C')?.densityScore ?? 0.2;
-  const bestExitTime = zoneACongestion > 0.7 || zoneCCongestion > 0.7
-    ? 'Wait 20 mins for crowd clearance'
-    : 'Exit now — clear path';
+  const zoneACongestion = zones.find((z) => z.zoneId === 'Zone_A')?.densityScore ?? 0.2;
+  const zoneCCongestion = zones.find((z) => z.zoneId === 'Zone_C')?.densityScore ?? 0.2;
+  const bestExitTime =
+    zoneACongestion > 0.7 || zoneCCongestion > 0.7
+      ? 'Wait 20 mins for crowd clearance'
+      : 'Exit now — clear path';
 
   return (
     <div style={{ maxWidth: '480px', margin: '0 auto' }}>
-      <h1 className="display-title" style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 4px 0' }}>
+      <h1
+        className="display-title"
+        style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 4px 0' }}
+      >
         Post-Match Exit Planner
       </h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 24px 0' }}>
@@ -176,11 +210,16 @@ export default function ExitPlannerPage() {
           aria-live="polite"
           aria-label="Matchflow AI is ranking your egress options, please wait"
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '10px 14px', borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 14px',
+            borderRadius: '6px',
             border: '1px solid var(--border-color)',
             backgroundColor: 'var(--bg-surface)',
-            marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)'
+            marginBottom: '16px',
+            fontSize: '13px',
+            color: 'var(--text-secondary)',
           }}
         >
           <Loader size={14} className="spin" aria-hidden="true" />
@@ -194,14 +233,24 @@ export default function ExitPlannerPage() {
           role="note"
           aria-label={`AI recommendation: ${aiSummary}`}
           style={{
-            padding: '12px 16px', borderRadius: '6px', marginBottom: '20px',
+            padding: '12px 16px',
+            borderRadius: '6px',
+            marginBottom: '20px',
             border: '1px solid var(--primary-accent)',
             backgroundColor: 'rgba(251,191,36,0.08)',
-            fontSize: '14px', color: 'var(--text-primary)',
-            display: 'flex', alignItems: 'flex-start', gap: '8px'
+            fontSize: '14px',
+            color: 'var(--text-primary)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
           }}
         >
-          <Zap size={16} color="var(--primary-accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+          <Zap
+            size={16}
+            color="var(--primary-accent)"
+            aria-hidden="true"
+            style={{ flexShrink: 0, marginTop: 1 }}
+          />
           <span>
             <strong style={{ color: 'var(--primary-accent)' }}>
               {rankingError ? 'Deterministic ranking' : 'AI recommendation'}:
@@ -213,28 +262,98 @@ export default function ExitPlannerPage() {
 
       {/* Primary recommendation card */}
       {bestOption && (
-        <div className="glass-panel" style={{ borderColor: 'var(--primary-accent)', padding: '20px', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: 'var(--primary-accent)' }}>
+        <div
+          className="glass-panel"
+          style={{ borderColor: 'var(--primary-accent)', padding: '20px', marginBottom: '24px' }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '16px',
+              color: 'var(--primary-accent)',
+            }}
+          >
             <Navigation size={20} aria-hidden="true" />
-            <h2 style={{ margin: 0, fontWeight: 'bold', fontSize: '16px', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h2
+              style={{
+                margin: 0,
+                fontWeight: 'bold',
+                fontSize: '16px',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
               RECOMMENDED EGRESS ROUTE
             </h2>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>BEST GATE</span>
-              <span style={{ fontWeight: 'bold', fontSize: '20px', color: 'var(--text-primary)', fontFamily: "'Space Grotesk', sans-serif" }}>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  display: 'block',
+                  fontWeight: 'bold',
+                  marginBottom: '4px',
+                }}
+              >
+                BEST GATE
+              </span>
+              <span
+                style={{
+                  fontWeight: 'bold',
+                  fontSize: '20px',
+                  color: 'var(--text-primary)',
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}
+              >
                 {bestOption.gate}
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '8px' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '16px',
+                marginTop: '8px',
+              }}
+            >
               <div>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>EST. TRAVEL TIME</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '16px' }}>{bestOption.estimatedMinutes} mins</span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    display: 'block',
+                    fontWeight: 'bold',
+                    marginBottom: '4px',
+                  }}
+                >
+                  EST. TRAVEL TIME
+                </span>
+                <span
+                  style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '16px' }}
+                >
+                  {bestOption.estimatedMinutes} mins
+                </span>
               </div>
               <div>
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>DEPARTURE STATUS</span>
-                <span style={{ fontWeight: 'bold', color: 'var(--secondary-accent)', fontSize: '16px' }}>{bestExitTime}</span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    display: 'block',
+                    fontWeight: 'bold',
+                    marginBottom: '4px',
+                  }}
+                >
+                  DEPARTURE STATUS
+                </span>
+                <span
+                  style={{ fontWeight: 'bold', color: 'var(--secondary-accent)', fontSize: '16px' }}
+                >
+                  {bestExitTime}
+                </span>
               </div>
             </div>
           </div>
@@ -242,15 +361,27 @@ export default function ExitPlannerPage() {
       )}
 
       {/* Ranked transit options */}
-      <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 16px 0', fontFamily: "'Space Grotesk', sans-serif" }}>
-        All Egress Options {rankedOptions && <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>— AI ranked</span>}
+      <h2
+        style={{
+          fontSize: '16px',
+          fontWeight: 'bold',
+          margin: '0 0 16px 0',
+          fontFamily: "'Space Grotesk', sans-serif",
+        }}
+      >
+        All Egress Options{' '}
+        {rankedOptions && (
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+            — AI ranked
+          </span>
+        )}
       </h2>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {ranked.map(({ rank, rationale, recommended, option }) => {
           const queuePct = Math.round(option.currentQueueScore * 100);
-          const greenPct  = Math.round(option.sustainabilityScore * 100);
-          const isGreen   = option.sustainabilityScore >= 0.6;
+          const greenPct = Math.round(option.sustainabilityScore * 100);
+          const isGreen = option.sustainabilityScore >= 0.6;
           const isCongested = option.currentQueueScore >= 0.6;
 
           return (
@@ -264,58 +395,159 @@ export default function ExitPlannerPage() {
                 transition: 'opacity 200ms ease',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '15px' }}>
-                  {option.icon === 'train'
-                    ? <Train size={18} color={isGreen ? 'var(--secondary-accent)' : 'var(--text-secondary)'} aria-hidden="true" />
-                    : option.icon === 'car'
-                    ? <Car size={18} color="var(--alert-accent)" aria-hidden="true" />
-                    : <Navigation size={18} color="var(--text-secondary)" aria-hidden="true" />}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '15px',
+                  }}
+                >
+                  {option.icon === 'train' ? (
+                    <Train
+                      size={18}
+                      color={isGreen ? 'var(--secondary-accent)' : 'var(--text-secondary)'}
+                      aria-hidden="true"
+                    />
+                  ) : option.icon === 'car' ? (
+                    <Car size={18} color="var(--alert-accent)" aria-hidden="true" />
+                  ) : (
+                    <Navigation size={18} color="var(--text-secondary)" aria-hidden="true" />
+                  )}
                   <span>{option.name}</span>
                   {recommended && (
-                    <span style={{ fontSize: '10px', backgroundColor: 'rgba(251,191,36,0.15)', color: 'var(--primary-accent)', border: '1px solid var(--primary-accent)', borderRadius: '4px', padding: '1px 6px', fontWeight: 'bold' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        backgroundColor: 'rgba(251,191,36,0.15)',
+                        color: 'var(--primary-accent)',
+                        border: '1px solid var(--primary-accent)',
+                        borderRadius: '4px',
+                        padding: '1px 6px',
+                        fontWeight: 'bold',
+                      }}
+                    >
                       #{rank} BEST
                     </span>
                   )}
                 </div>
-                <span style={{
-                  fontSize: '11px', padding: '3px 10px',
-                  backgroundColor: isCongested ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
-                  color: isCongested ? 'var(--alert-accent)' : 'var(--secondary-accent)',
-                  border: `1px solid ${isCongested ? 'var(--alert-accent)' : 'var(--secondary-accent)'}`,
-                  borderRadius: '4px', fontWeight: 'bold',
-                  display: 'inline-flex', alignItems: 'center', gap: '4px'
-                }}>
-                  {isCongested
-                    ? <AlertTriangle size={11} aria-hidden="true" />
-                    : <CheckCircle size={11} aria-hidden="true" />}
+                <span
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 10px',
+                    backgroundColor: isCongested ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+                    color: isCongested ? 'var(--alert-accent)' : 'var(--secondary-accent)',
+                    border: `1px solid ${isCongested ? 'var(--alert-accent)' : 'var(--secondary-accent)'}`,
+                    borderRadius: '4px',
+                    fontWeight: 'bold',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  {isCongested ? (
+                    <AlertTriangle size={11} aria-hidden="true" />
+                  ) : (
+                    <CheckCircle size={11} aria-hidden="true" />
+                  )}
                   <span>{isCongested ? 'CONGESTED' : 'CLEAR'}</span>
                 </span>
               </div>
 
-              <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              <p
+                style={{
+                  margin: '0 0 10px 0',
+                  fontSize: '13px',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                }}
+              >
                 {option.detail}
               </p>
 
               {/* Rationale from AI */}
               {rationale && (
-                <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: 'var(--primary-accent)', fontStyle: 'italic' }}>
+                <p
+                  style={{
+                    margin: '0 0 10px 0',
+                    fontSize: '12px',
+                    color: 'var(--primary-accent)',
+                    fontStyle: 'italic',
+                  }}
+                >
                   {rationale}
                 </p>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr',
+                  gap: '8px',
+                  fontSize: '12px',
+                }}
+              >
                 <div>
-                  <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '10px', fontWeight: 'bold' }}>ETA</span>
+                  <span
+                    style={{
+                      color: 'var(--text-secondary)',
+                      display: 'block',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    ETA
+                  </span>
                   <span style={{ fontWeight: 'bold' }}>{option.estimatedMinutes} min</span>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '10px', fontWeight: 'bold' }}>QUEUE</span>
-                  <span style={{ fontWeight: 'bold', color: isCongested ? 'var(--alert-accent)' : 'var(--secondary-accent)' }}>{queuePct}%</span>
+                  <span
+                    style={{
+                      color: 'var(--text-secondary)',
+                      display: 'block',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    QUEUE
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 'bold',
+                      color: isCongested ? 'var(--alert-accent)' : 'var(--secondary-accent)',
+                    }}
+                  >
+                    {queuePct}%
+                  </span>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '10px', fontWeight: 'bold' }}>GREEN</span>
-                  <span style={{ fontWeight: 'bold', color: isGreen ? 'var(--secondary-accent)' : 'var(--text-secondary)' }}>{greenPct}%</span>
+                  <span
+                    style={{
+                      color: 'var(--text-secondary)',
+                      display: 'block',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    GREEN
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 'bold',
+                      color: isGreen ? 'var(--secondary-accent)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {greenPct}%
+                  </span>
                 </div>
               </div>
             </div>

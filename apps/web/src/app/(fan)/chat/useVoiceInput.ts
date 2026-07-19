@@ -89,11 +89,11 @@ export function useVoiceInput(
   session: Session,
   onFinalTranscript: (transcript: string, caption: string) => void,
 ): UseVoiceInputResult {
-  const [isListening, setIsListening]       = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceSupported, setVoiceSupported] = useState(false);
 
-  const recognitionRef      = useRef<MatchflowSpeechRecognition | null>(null);
+  const recognitionRef = useRef<MatchflowSpeechRecognition | null>(null);
   // Stale-closure fix: always holds the latest transcript regardless of when
   // onend's closure was created.
   const latestTranscriptRef = useRef('');
@@ -126,13 +126,17 @@ export function useVoiceInput(
     const recognition = new SR();
 
     recognition.lang =
-      session.language === 'es' ? 'es-ES'
-      : session.language === 'fr' ? 'fr-FR'
-      : session.language === 'pt' ? 'pt-PT'
-      : session.language === 'ar' ? 'ar-SA'
-      : 'en-US';
-    recognition.continuous      = false;
-    recognition.interimResults  = true;
+      session.language === 'es'
+        ? 'es-ES'
+        : session.language === 'fr'
+          ? 'fr-FR'
+          : session.language === 'pt'
+            ? 'pt-PT'
+            : session.language === 'ar'
+              ? 'ar-SA'
+              : 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     const startTime = Date.now();
@@ -144,7 +148,7 @@ export function useVoiceInput(
 
     recognition.onresult = (event: MatchflowSpeechRecognitionEvent) => {
       const transcript = Array.from(event.results)
-        .map(r => (r as SpeechRecognitionResultList)[0].transcript)
+        .map((r) => (r as SpeechRecognitionResultList)[0].transcript)
         .join('');
       // Update both the state (for the live input preview) AND the ref
       // (for the stale-closure-safe read inside onend).

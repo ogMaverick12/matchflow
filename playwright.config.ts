@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright configuration for MatchFlow
- * 
+ *
  * Covers:
  *   - §11 P4: Accessibility axe-core scan (test/accessibility/)
  *   - §11 P5: E2E matchday scenario (test/e2e/)
@@ -12,7 +12,11 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './test',
-  testMatch: ['**/accessibility/**/*.test.ts', '**/e2e/**/*.test.ts', '**/integration/**/*.test.ts'],
+  testMatch: [
+    '**/accessibility/**/*.test.ts',
+    '**/e2e/**/*.test.ts',
+    '**/integration/**/*.test.ts',
+  ],
 
   // Maximum time a single test is allowed to run
   timeout: 60_000,
@@ -24,10 +28,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
 
-  reporter: [
-    ['list'],
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
-  ],
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
 
   use: {
     baseURL: process.env.WEB_BASE_URL ?? 'http://localhost:3000',

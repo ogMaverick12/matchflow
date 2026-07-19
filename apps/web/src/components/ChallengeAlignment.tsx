@@ -146,8 +146,19 @@ export function ChallengeAlignmentModal({ open, onClose }: ChallengeAlignmentMod
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <h2 id="challenge-alignment-title" className="display-title" style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '8px',
+          }}
+        >
+          <h2
+            id="challenge-alignment-title"
+            className="display-title"
+            style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}
+          >
             Challenge Alignment Matrix
           </h2>
           <button
@@ -165,13 +176,27 @@ export function ChallengeAlignmentModal({ open, onClose }: ChallengeAlignmentMod
           </button>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 16px 0' }}>
-          §14 — every feature demonstrated in the live matchday scenario maps to a specific challenge requirement the judges score. This is the close of the §16 demo narrative.
+          §14 — every feature demonstrated in the live matchday scenario maps to a specific
+          challenge requirement the judges score. This is the close of the §16 demo narrative.
         </p>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '720px' }}>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '12px',
+              minWidth: '720px',
+            }}
+          >
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)', color: 'var(--primary-accent)' }}>
+              <tr
+                style={{
+                  textAlign: 'left',
+                  borderBottom: '1px solid var(--border-color)',
+                  color: 'var(--primary-accent)',
+                }}
+              >
                 <th style={{ padding: '8px 6px' }}>Feature</th>
                 <th style={{ padding: '8px 6px' }}>Challenge Requirement(s)</th>
                 <th style={{ padding: '8px 6px' }}>Target User</th>
@@ -183,7 +208,15 @@ export function ChallengeAlignmentModal({ open, onClose }: ChallengeAlignmentMod
             <tbody>
               {ALIGNMENT_MATRIX.map((row) => (
                 <tr key={row.feature} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '8px 6px', fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif" }}>{row.feature}</td>
+                  <td
+                    style={{
+                      padding: '8px 6px',
+                      fontWeight: 'bold',
+                      fontFamily: "'Space Grotesk', sans-serif",
+                    }}
+                  >
+                    {row.feature}
+                  </td>
                   <td style={{ padding: '8px 6px' }}>{row.challenge}</td>
                   <td style={{ padding: '8px 6px' }}>{row.targetUser}</td>
                   <td style={{ padding: '8px 6px' }}>{row.genaiUsage}</td>
@@ -195,16 +228,21 @@ export function ChallengeAlignmentModal({ open, onClose }: ChallengeAlignmentMod
           </table>
         </div>
 
-        <div style={{
-          marginTop: '16px',
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'center',
-          color: 'var(--secondary-accent)',
-          fontSize: '13px',
-        }}>
+        <div
+          style={{
+            marginTop: '16px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            color: 'var(--secondary-accent)',
+            fontSize: '13px',
+          }}
+        >
           <ShieldCheck size={16} aria-hidden="true" />
-          <span>One engine, two views: the same live congestion + incident signal powers both the fan and ops surfaces — access controlled by real server-side RBAC.</span>
+          <span>
+            One engine, two views: the same live congestion + incident signal powers both the fan
+            and ops surfaces — access controlled by real server-side RBAC.
+          </span>
         </div>
       </div>
     </div>

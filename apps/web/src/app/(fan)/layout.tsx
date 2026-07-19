@@ -6,12 +6,9 @@ import { usePathname } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Map, MessageSquare, Home, Eye, Navigation, Clock } from 'lucide-react';
 import { startCongestionSimulation, stopCongestionSimulation } from '@/lib/congestion-simulator';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-export default function FanLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function FanLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, simulateOffline, ensureFanSession } = useSession();
 
@@ -35,14 +32,17 @@ export default function FanLayout({
   const wrapperClass = session.accessibilityMode.highContrast ? 'high-contrast' : '';
 
   return (
-    <div className={`fan-layout-container ${wrapperClass}`} style={{
-      display: 'flex',
-      flexDirection: 'column',
-      minHeight: '100vh',
-      backgroundColor: 'var(--bg-base)',
-      color: 'var(--text-primary)',
-      paddingBottom: '70px',
-    }}>
+    <div
+      className={`fan-layout-container ${wrapperClass}`}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        backgroundColor: 'var(--bg-base)',
+        color: 'var(--text-primary)',
+        paddingBottom: '70px',
+      }}
+    >
       {/* §9: Top status bar — role=banner, aria-live so offline state is announced */}
       <div
         role="banner"
@@ -57,7 +57,8 @@ export default function FanLayout({
           alignItems: 'center',
           fontSize: '12px',
           fontWeight: 'bold',
-        }}>
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* §9: Status dot is decorative — aria-hidden */}
           <span
@@ -67,8 +68,9 @@ export default function FanLayout({
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: simulateOffline ? 'var(--alert-accent)' : 'var(--secondary-accent)'
-            }} />
+              backgroundColor: simulateOffline ? 'var(--alert-accent)' : 'var(--secondary-accent)',
+            }}
+          />
           <span>{simulateOffline ? 'OFFLINE DEGRADED MODE' : 'LIVE CONCOURSE ACTIVE'}</span>
         </div>
         <div>
@@ -94,22 +96,39 @@ export default function FanLayout({
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-accent)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: 'var(--primary-accent)',
+          }}
+        >
           <Clock size={12} aria-hidden="true" />
-          <span style={{ fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif" }}>FIFA WC 2026</span>
+          <span style={{ fontWeight: 'bold', fontFamily: "'Space Grotesk', sans-serif" }}>
+            FIFA WC 2026
+          </span>
           <span style={{ color: 'var(--text-secondary)' }}>·</span>
           <span style={{ color: 'var(--text-primary)' }}>USA vs Germany</span>
         </div>
-        <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-          <span>KO <strong style={{ color: 'var(--text-primary)' }}>19:00</strong></span>
-          <span>Gates <strong style={{ color: 'var(--secondary-accent)' }}>OPEN</strong></span>
-          <span>Period <strong style={{ color: 'var(--text-primary)' }}>PRE-MATCH</strong></span>
+        <div
+          style={{ display: 'flex', gap: '12px', fontSize: '11px', color: 'var(--text-secondary)' }}
+        >
+          <span>
+            KO <strong style={{ color: 'var(--text-primary)' }}>19:00</strong>
+          </span>
+          <span>
+            Gates <strong style={{ color: 'var(--secondary-accent)' }}>OPEN</strong>
+          </span>
+          <span>
+            Period <strong style={{ color: 'var(--text-primary)' }}>PRE-MATCH</strong>
+          </span>
         </div>
       </div>
 
       {/* §9: role=main on the content region */}
       <main id="main-content" style={{ flex: 1, padding: '16px' }}>
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </main>
 
       {/* §9: Bottom nav — aria-label required on <nav> for landmark uniqueness */}
@@ -126,8 +145,9 @@ export default function FanLayout({
           display: 'flex',
           justifyContent: 'space-around',
           alignItems: 'center',
-          zIndex: 1000
-        }}>
+          zIndex: 1000,
+        }}
+      >
         {/* §9: Each nav link has aria-label and aria-current for active state.
             Icons are aria-hidden because the text label is present. */}
         <Link
@@ -139,8 +159,9 @@ export default function FanLayout({
             flexDirection: 'column',
             alignItems: 'center',
             color: isActive('/home') ? 'var(--primary-accent)' : 'var(--text-secondary)',
-            fontSize: '10px'
-          }}>
+            fontSize: '10px',
+          }}
+        >
           <Home size={20} aria-hidden="true" />
           <span>Home</span>
         </Link>
@@ -154,8 +175,9 @@ export default function FanLayout({
             flexDirection: 'column',
             alignItems: 'center',
             color: isActive('/chat') ? 'var(--primary-accent)' : 'var(--text-secondary)',
-            fontSize: '10px'
-          }}>
+            fontSize: '10px',
+          }}
+        >
           <MessageSquare size={20} aria-hidden="true" />
           <span>Ask AI</span>
         </Link>
@@ -169,8 +191,9 @@ export default function FanLayout({
             flexDirection: 'column',
             alignItems: 'center',
             color: isActive('/map') ? 'var(--primary-accent)' : 'var(--text-secondary)',
-            fontSize: '10px'
-          }}>
+            fontSize: '10px',
+          }}
+        >
           <Map size={20} aria-hidden="true" />
           <span>Map</span>
         </Link>
@@ -184,8 +207,9 @@ export default function FanLayout({
             flexDirection: 'column',
             alignItems: 'center',
             color: isActive('/exit') ? 'var(--primary-accent)' : 'var(--text-secondary)',
-            fontSize: '10px'
-          }}>
+            fontSize: '10px',
+          }}
+        >
           <Navigation size={20} aria-hidden="true" />
           <span>Exit / Transit</span>
         </Link>
@@ -199,8 +223,9 @@ export default function FanLayout({
             flexDirection: 'column',
             alignItems: 'center',
             color: isActive('/accessibility') ? 'var(--primary-accent)' : 'var(--text-secondary)',
-            fontSize: '10px'
-          }}>
+            fontSize: '10px',
+          }}
+        >
           <Eye size={20} aria-hidden="true" />
           <span>Accessibility</span>
         </Link>

@@ -13,20 +13,23 @@ Part of the **"one engine, two doors"** Matchflow monorepo architecture.
 ## Components
 
 ### `<RouteCard />`
+
 Displays a wayfinding route result. Used in the Fan Concierge chat (after AI routing) and the Volunteer Command Center.
 
-| Prop | Type | Description |
-|---|---|---|
-| `destinationName` | `string` | Human-readable destination label |
-| `totalTimeSeconds` | `number` | Walking time estimate |
-| `isAccessible` | `boolean` | Whether the route used the accessible subgraph |
-| `pathNodesCount` | `number` | Number of waypoints in the path |
-| `congestionLevel` | `'low' \| 'medium' \| 'high'` | Visual congestion indicator |
+| Prop               | Type                          | Description                                    |
+| ------------------ | ----------------------------- | ---------------------------------------------- |
+| `destinationName`  | `string`                      | Human-readable destination label               |
+| `totalTimeSeconds` | `number`                      | Walking time estimate                          |
+| `isAccessible`     | `boolean`                     | Whether the route used the accessible subgraph |
+| `pathNodesCount`   | `number`                      | Number of waypoints in the path                |
+| `congestionLevel`  | `'low' \| 'medium' \| 'high'` | Visual congestion indicator                    |
 
 ### `<Info />`
+
 Informational inline message component. `role="note"`, no live region.
 
 ### `<AlertCircle />`
+
 Error/warning inline message. `role="alert"` — announced immediately by screen readers.
 
 ## Design System Tokens
@@ -34,15 +37,10 @@ Error/warning inline message. `role="alert"` — announced immediately by screen
 All components use the CSS custom properties defined in `apps/web/src/app/globals.css`:
 
 ```css
---primary-accent: #fbbf24    /* FIFA Gold */
---secondary-accent: #34d399  /* Status Green */
---alert-accent: #ef4444      /* Alert Red */
---bg-base: #0f172a           /* Deep Navy */
---bg-surface: #1e293b
---bg-surface-elevated: #334155
---text-primary: #f1f5f9
---text-secondary: #94a3b8
---border-color: rgba(255,255,255,0.08)
+--primary-accent: #fbbf24 /* FIFA Gold */ --secondary-accent: #34d399 /* Status Green */
+  --alert-accent: #ef4444 /* Alert Red */ --bg-base: #0f172a /* Deep Navy */ --bg-surface: #1e293b
+  --bg-surface-elevated: #334155 --text-primary: #f1f5f9 --text-secondary: #94a3b8
+  --border-color: rgba(255, 255, 255, 0.08);
 ```
 
 ## Accessibility Guarantees

@@ -10,7 +10,6 @@ import { Send, User, Bot, Mic, MicOff } from 'lucide-react';
 import { logEvent, classifyQuery } from '@/lib/analytics';
 import { useVoiceInput } from './useVoiceInput';
 
-
 interface ChatMessage {
   id: string;
   sender: 'user' | 'bot';
@@ -21,9 +20,7 @@ interface ChatMessage {
   voiceTranscript?: string;
 }
 
-
 function ChatContent() {
-
   const { session, simulateOffline } = useSession();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState('');
@@ -31,10 +28,11 @@ function ChatContent() {
     {
       id: 'welcome',
       sender: 'bot',
-      text: session.language === 'es'
-        ? '¡Hola! Soy tu asistente Matchflow. ¿Cómo puedo ayudarte a navegar por el Mercedes-Benz Stadium?'
-        : 'Hello! I am your Matchflow concierge. How can I help you navigate Mercedes-Benz Stadium today?'
-    }
+      text:
+        session.language === 'es'
+          ? '¡Hola! Soy tu asistente Matchflow. ¿Cómo puedo ayudarte a navegar por el Mercedes-Benz Stadium?'
+          : 'Hello! I am your Matchflow concierge. How can I help you navigate Mercedes-Benz Stadium today?',
+    },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   // §13: Streaming state — tracks the in-progress bot message ID
@@ -48,11 +46,13 @@ function ChatContent() {
   // onFinalTranscript is called by the hook when recognition ends with a
   // non-empty transcript. It delegates straight into handleSubmitText so the
   // hook has no knowledge of the submission pipeline.
-  const { isListening, voiceTranscript, voiceSupported, handleVoiceToggle } =
-    useVoiceInput(session, (transcript, caption) => {
+  const { isListening, voiceTranscript, voiceSupported, handleVoiceToggle } = useVoiceInput(
+    session,
+    (transcript, caption) => {
       const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
       handleSubmitText(transcript, fakeEvent, caption);
-    });
+    },
+  );
 
   // §4B: Read ?q= URL param and auto-submit pre-filled quick actions from home page
   const autoSubmittedRef = useRef(false);
@@ -74,14 +74,12 @@ function ChatContent() {
   useEffect(() => {
     const unsub = db.subscribeToCongestion(session.role, (zones) => {
       const newMapping: Record<string, number> = {};
-      zones.forEach(z => {
+      zones.forEach((z) => {
         newMapping[z.zoneId] = z.densityScore;
       });
-      setCongestionMap(prev => {
+      setCongestionMap((prev) => {
         // Only update state if any zone density changed (avoid idle re-renders)
-        const hasChanged = !prev || Object.keys(newMapping).some(
-          k => newMapping[k] !== prev[k]
-        );
+        const hasChanged = !prev || Object.keys(newMapping).some((k) => newMapping[k] !== prev[k]);
         return hasChanged ? newMapping : prev;
       });
     });
@@ -104,12 +102,15 @@ function ChatContent() {
     if (!userText.trim()) return;
 
     setQuery('');
-    setMessages(prev => [...prev, {
-      id: `msg_${Date.now()}_u`,
-      sender: 'user',
-      text: userText,
-      voiceTranscript: voiceCaption,
-    }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `msg_${Date.now()}_u`,
+        sender: 'user',
+        text: userText,
+        voiceTranscript: voiceCaption,
+      },
+    ]);
     setIsLoading(true);
 
     // §5 Analytics: log query category (not verbatim text)
@@ -117,24 +118,30 @@ function ChatContent() {
     const callStart = performance.now();
 
     if (simulateOffline) {
-      setMessages(prev => [...prev, {
-        id: `msg_${Date.now()}_e`,
-        sender: 'bot',
-        text: '⚠️ Network Error: Unable to reach Flow Engine. Matchflow is operating in offline-degraded mode. Please refer to static gate maps.'
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg_${Date.now()}_e`,
+          sender: 'bot',
+          text: '⚠️ Network Error: Unable to reach Flow Engine. Matchflow is operating in offline-degraded mode. Please refer to static gate maps.',
+        },
+      ]);
       setIsLoading(false);
       return;
     }
 
     try {
-      const response = await askConcierge({
-        query: userText,
-        sessionId: session.sessionId,
-        userId: session.userId,
-        role: session.role,
-        language: session.language,
-        accessibilityMode: session.accessibilityMode
-      }, congestionMap ?? {});
+      const response = await askConcierge(
+        {
+          query: userText,
+          sessionId: session.sessionId,
+          userId: session.userId,
+          role: session.role,
+          language: session.language,
+          accessibilityMode: session.accessibilityMode,
+        },
+        congestionMap ?? {},
+      );
 
       // §9: Explicit no-accessible-path message — never silent fallback
       const isAccessibleNoPath =
@@ -148,24 +155,26 @@ function ChatContent() {
       const botMsgId = `msg_${Date.now()}_b`;
       let firstTokenLogged = false;
 
-      setMessages(prev => [...prev, {
-        id: botMsgId,
-        sender: 'bot',
-        text: '',
-        route: response.route,
-        isAccessibleNoPath
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: botMsgId,
+          sender: 'bot',
+          text: '',
+          route: response.route,
+          isAccessibleNoPath,
+        },
+      ]);
       setStreamingMsgId(botMsgId);
       setIsLoading(false);
 
       for (let i = 0; i < words.length; i++) {
-        await new Promise<void>(resolve => setTimeout(resolve, WORD_INTERVAL_MS));
+        await new Promise<void>((resolve) => setTimeout(resolve, WORD_INTERVAL_MS));
         const currentText = words.slice(0, i + 1).join(' ');
 
         if (!firstTokenLogged) {
           firstTokenLogged = true;
           const ttft = Math.round(performance.now() - callStart);
-          console.info(`[TTFT] ${ttft}ms to first token (call → first word rendered)`);
           if (typeof window !== 'undefined') {
             (window as any).__matchflowLastTTFT = ttft;
           }
@@ -180,9 +189,9 @@ function ChatContent() {
           });
         }
 
-        setMessages(prev => prev.map(m =>
-          m.id === botMsgId ? { ...m, text: currentText } : m
-        ));
+        setMessages((prev) =>
+          prev.map((m) => (m.id === botMsgId ? { ...m, text: currentText } : m)),
+        );
       }
 
       setStreamingMsgId(null);
@@ -224,7 +233,7 @@ function ChatContent() {
               'Congestion confirmed by live routing signal.',
             zoneId: hottestZoneId,
             level: '100',
-          }).catch(err => {
+          }).catch((err) => {
             // Non-fatal — the fan already has their route. Log silently.
             console.warn('[CongestionSignal] createReport failed:', (err as Error).message);
           });
@@ -241,16 +250,18 @@ function ChatContent() {
         surface: 'concierge',
         reason: String(err),
       });
-      setMessages(prev => [...prev, {
-        id: `msg_${Date.now()}_e`,
-        sender: 'bot',
-        text: '❌ Matchflow encountered an error processing your path. Please try again or ask a volunteer nearby.'
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `msg_${Date.now()}_e`,
+          sender: 'bot',
+          text: '❌ Matchflow encountered an error processing your path. Please try again or ask a volunteer nearby.',
+        },
+      ]);
       setIsLoading(false);
       setStreamingMsgId(null);
     }
   };
-
 
   /** Form onSubmit wrapper — delegates to handleSubmitText with current query value */
   const handleSubmit = (e: React.FormEvent) => {
@@ -258,17 +269,26 @@ function ChatContent() {
     handleSubmitText(query.trim(), e);
   };
 
-
   return (
-    <div style={{
-      maxWidth: '480px',
-      margin: '0 auto',
-      display: 'flex',
-      flexDirection: 'column',
-      height: 'calc(100vh - 120px)',
-    }}>
+    <div
+      style={{
+        maxWidth: '480px',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 120px)',
+      }}
+    >
       {/* §9: Heading hierarchy — h1 on the page */}
-      <h1 className="display-title" style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 8px 0', letterSpacing: '-0.01em' }}>
+      <h1
+        className="display-title"
+        style={{
+          fontSize: '20px',
+          fontWeight: 'bold',
+          margin: '0 0 8px 0',
+          letterSpacing: '-0.01em',
+        }}
+      >
         Matchflow Concierge
       </h1>
 
@@ -280,17 +300,22 @@ function ChatContent() {
         aria-label={`Routing mode: ${session.accessibilityMode.mobilityRouting ? 'Accessible-only' : 'Standard'}${session.accessibilityMode.simplifiedLanguage ? ', Simplified English active' : ''}`}
         style={{
           padding: '8px 12px',
-          backgroundColor: session.accessibilityMode.mobilityRouting ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-surface)',
+          backgroundColor: session.accessibilityMode.mobilityRouting
+            ? 'rgba(16, 185, 129, 0.1)'
+            : 'var(--bg-surface)',
           fontSize: '13px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: '12px',
-        }}>
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {/* §9: aria-hidden on decorative icon */}
           <Info size={14} color="var(--primary-accent)" aria-hidden="true" />
-          <span>Routing: {session.accessibilityMode.mobilityRouting ? 'Accessible-only' : 'Standard'}</span>
+          <span>
+            Routing: {session.accessibilityMode.mobilityRouting ? 'Accessible-only' : 'Standard'}
+          </span>
         </div>
         {session.accessibilityMode.simplifiedLanguage && (
           <span style={{ fontSize: '11px', color: 'var(--primary-accent)', fontWeight: 'bold' }}>
@@ -313,8 +338,9 @@ function ChatContent() {
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',
-          marginBottom: '12px'
-        }}>
+          marginBottom: '12px',
+        }}
+      >
         {messages.map((msg) => {
           const isUser = msg.sender === 'user';
           return (
@@ -323,14 +349,17 @@ function ChatContent() {
               style={{
                 display: 'flex',
                 justifyContent: isUser ? 'flex-end' : 'flex-start',
-                width: '100%'
-              }}>
-              <div style={{
-                maxWidth: '85%',
-                display: 'flex',
-                gap: '8px',
-                flexDirection: isUser ? 'row-reverse' : 'row'
-              }}>
+                width: '100%',
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: '85%',
+                  display: 'flex',
+                  gap: '8px',
+                  flexDirection: isUser ? 'row-reverse' : 'row',
+                }}
+              >
                 {/* §9: Avatar icons are decorative — aria-hidden */}
                 <div
                   aria-hidden="true"
@@ -338,13 +367,16 @@ function ChatContent() {
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: isUser ? 'var(--primary-accent)' : 'var(--bg-surface-elevated)',
+                    backgroundColor: isUser
+                      ? 'var(--primary-accent)'
+                      : 'var(--bg-surface-elevated)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: isUser ? '#000000' : '#ffffff',
-                    flexShrink: 0
-                  }}>
+                    flexShrink: 0,
+                  }}
+                >
                   {isUser ? <User size={16} /> : <Bot size={16} />}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -362,11 +394,16 @@ function ChatContent() {
                         fontWeight: 'bold',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px'
-                      }}>
+                        gap: '8px',
+                      }}
+                    >
                       <SeverityBadge severity="high" />
                       <span aria-hidden="true">♿</span>
-                      <span>No accessible path currently available for this route. All connecting paths use stairs or escalators. Please speak to a stadium staff member for assisted navigation.</span>
+                      <span>
+                        No accessible path currently available for this route. All connecting paths
+                        use stairs or escalators. Please speak to a stadium staff member for
+                        assisted navigation.
+                      </span>
                     </div>
                   )}
                   <div
@@ -375,8 +412,9 @@ function ChatContent() {
                       padding: '12px',
                       backgroundColor: isUser ? 'rgba(30, 41, 59, 0.9)' : 'rgba(15, 23, 42, 0.75)',
                       fontSize: '15px',
-                      lineHeight: '1.5'
-                    }}>
+                      lineHeight: '1.5',
+                    }}
+                  >
                     {msg.text}
                   </div>
                   {/* §9 §4F: Voice transcript caption — synchronized visible transcript.
@@ -399,46 +437,89 @@ function ChatContent() {
                       }}
                     >
                       <Mic size={10} aria-hidden="true" color="var(--primary-accent)" />
-                      <span style={{ fontStyle: 'italic' }}>Voice: &quot;{msg.voiceTranscript}&quot;</span>
+                      <span style={{ fontStyle: 'italic' }}>
+                        Voice: &quot;{msg.voiceTranscript}&quot;
+                      </span>
                     </div>
                   )}
 
                   {/* §9: Inline simplifier reachable without leaving conversation */}
-                  {!isUser && !msg.isAccessibleNoPath && session.accessibilityMode.simplifiedLanguage && (
-                    <div style={{
-                      fontSize: '11px',
-                      color: 'var(--primary-accent)',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      border: '1px solid rgba(251,191,36,0.3)',
-                      display: 'inline-block',
-                      alignSelf: 'flex-start'
-                    }} aria-label="Response shown in simplified language mode">
-                      ✦ Simplified
-                    </div>
-                  )}
+                  {!isUser &&
+                    !msg.isAccessibleNoPath &&
+                    session.accessibilityMode.simplifiedLanguage && (
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--primary-accent)',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(251,191,36,0.3)',
+                          display: 'inline-block',
+                          alignSelf: 'flex-start',
+                        }}
+                        aria-label="Response shown in simplified language mode"
+                      >
+                        ✦ Simplified
+                      </div>
+                    )}
                   {/* Render shared RouteCard if path returned */}
                   {msg.route && (
                     <div style={{ marginTop: '8px' }}>
                       <RouteCard
-                        destinationName={msg.route.nodeDetails[msg.route.nodeDetails.length - 1]?.name || 'Destination'}
+                        destinationName={
+                          msg.route.nodeDetails[msg.route.nodeDetails.length - 1]?.name ||
+                          'Destination'
+                        }
                         totalTimeSeconds={msg.route.totalTimeSeconds}
                         isAccessible={session.accessibilityMode.mobilityRouting}
                         pathNodesCount={msg.route.path.length}
-                        congestionLevel={msg.route.totalTimeSeconds > 200 ? 'high' : msg.route.totalTimeSeconds > 100 ? 'medium' : 'low'}
+                        congestionLevel={
+                          msg.route.totalTimeSeconds > 200
+                            ? 'high'
+                            : msg.route.totalTimeSeconds > 100
+                              ? 'medium'
+                              : 'low'
+                        }
                       />
-                      <div className="glass-panel" style={{
-                        marginTop: '8px',
-                        padding: '12px',
-                        fontSize: '13px'
-                      }}>
-                        <span style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px', color: 'var(--primary-accent)', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      <div
+                        className="glass-panel"
+                        style={{
+                          marginTop: '8px',
+                          padding: '12px',
+                          fontSize: '13px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: 'bold',
+                            display: 'block',
+                            marginBottom: '8px',
+                            color: 'var(--primary-accent)',
+                            fontFamily: "'Space Grotesk', sans-serif",
+                          }}
+                        >
                           Rerouted Path Steps:
                         </span>
-                        <ol style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: 0, paddingLeft: '16px' }}>
+                        <ol
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px',
+                            margin: 0,
+                            paddingLeft: '16px',
+                          }}
+                        >
                           {msg.route.nodeDetails.map((node) => (
-                            <li key={node.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>{node.name} <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>({node.zone})</span></span>
+                            <li
+                              key={node.id}
+                              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                              <span>
+                                {node.name}{' '}
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                                  ({node.zone})
+                                </span>
+                              </span>
                             </li>
                           ))}
                         </ol>
@@ -465,8 +546,9 @@ function ChatContent() {
               fontSize: '14px',
               fontWeight: 'bold',
               color: 'var(--text-primary)',
-              fontFamily: "'Space Grotesk', sans-serif"
-            }}>
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}
+          >
             Matchflow is computing wayfinding path...
           </div>
         )}
@@ -494,7 +576,9 @@ function ChatContent() {
             <Mic size={16} aria-hidden="true" />
             <span>Listening…</span>
             {voiceTranscript && (
-              <span style={{ fontWeight: 'normal', color: 'var(--text-primary)', marginLeft: '8px' }}>
+              <span
+                style={{ fontWeight: 'normal', color: 'var(--text-primary)', marginLeft: '8px' }}
+              >
                 &quot;{voiceTranscript}&quot;
               </span>
             )}
@@ -510,8 +594,9 @@ function ChatContent() {
         style={{
           display: 'flex',
           gap: '8px',
-          padding: '8px 0'
-        }}>
+          padding: '8px 0',
+        }}
+      >
         {/* §9: Visible label via aria-labelledby, explicit id */}
         <label htmlFor={inputId} className="sr-only">
           Ask Matchflow a wayfinding question
@@ -522,7 +607,11 @@ function ChatContent() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={session.language === 'es' ? 'Escribe aquí tu pregunta...' : 'Ask for gate, restroom, food...'}
+          placeholder={
+            session.language === 'es'
+              ? 'Escribe aquí tu pregunta...'
+              : 'Ask for gate, restroom, food...'
+          }
           aria-label="Ask a wayfinding question"
           autoComplete="off"
           style={{
@@ -532,7 +621,7 @@ function ChatContent() {
             backgroundColor: 'var(--bg-surface)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border-color)',
-            fontSize: '14px'
+            fontSize: '14px',
           }}
           disabled={isLoading}
         />
@@ -549,7 +638,9 @@ function ChatContent() {
               borderRadius: '6px',
               backgroundColor: isListening ? 'rgba(251,191,36,0.2)' : 'var(--bg-surface)',
               color: isListening ? 'var(--primary-accent)' : 'var(--text-secondary)',
-              border: isListening ? '1px solid var(--primary-accent)' : '1px solid var(--border-color)',
+              border: isListening
+                ? '1px solid var(--primary-accent)'
+                : '1px solid var(--border-color)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -557,9 +648,11 @@ function ChatContent() {
             }}
             disabled={isLoading}
           >
-            {isListening
-              ? <MicOff size={16} aria-hidden="true" />
-              : <Mic size={16} aria-hidden="true" />}
+            {isListening ? (
+              <MicOff size={16} aria-hidden="true" />
+            ) : (
+              <Mic size={16} aria-hidden="true" />
+            )}
           </button>
         )}
         {/* §9: Icon-only button has aria-label */}
@@ -575,9 +668,10 @@ function ChatContent() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 14px 0 rgba(251, 191, 36, 0.3)'
+            boxShadow: '0 4px 14px 0 rgba(251, 191, 36, 0.3)',
           }}
-          disabled={isLoading}>
+          disabled={isLoading}
+        >
           {/* §9: Decorative icon inside labelled button */}
           <Send size={16} aria-hidden="true" />
         </button>
@@ -588,13 +682,14 @@ function ChatContent() {
 
 export default function ChatPage() {
   return (
-    <React.Suspense fallback={
-      <div style={{ padding: '24px', color: 'var(--text-secondary)', textAlign: 'center' }}>
-        Loading concierge...
-      </div>
-    }>
+    <React.Suspense
+      fallback={
+        <div style={{ padding: '24px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+          Loading concierge...
+        </div>
+      }
+    >
       <ChatContent />
     </React.Suspense>
   );
 }
-

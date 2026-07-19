@@ -11,15 +11,17 @@ export default function RootIndex() {
   }, [router]);
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#020617',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      color: '#94a3b8',
-      fontFamily: 'sans-serif'
-    }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#020617',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        color: '#94a3b8',
+        fontFamily: 'sans-serif',
+      }}
+    >
       <p>Redirecting to Matchflow Home...</p>
     </div>
   );

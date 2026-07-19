@@ -13,14 +13,14 @@ import { askConcierge, _setDb } from '../../apps/functions/src/index.ts';
 // Inject mock Firestore client so Firestore is never really called
 const mockWhereChain = {
   where: () => mockWhereChain,
-  get: async () => ({ empty: true, docs: [], forEach: () => {} })
+  get: async () => ({ empty: true, docs: [], forEach: () => {} }),
 };
 _setDb({
   collection: () => ({
     get: async () => ({ forEach: () => {} }),
     doc: () => ({ get: async () => ({ exists: false, data: () => ({}) }) }),
-    where: () => mockWhereChain
-  })
+    where: () => mockWhereChain,
+  }),
 } as any);
 
 describe('askConcierge Failure Injection & Fallback Tests', () => {
@@ -36,9 +36,9 @@ describe('askConcierge Failure Injection & Fallback Tests', () => {
         accessibilityMode: {
           mobilityRouting: false,
           highContrast: false,
-          simplifiedLanguage: false
-        }
-      }
+          simplifiedLanguage: false,
+        },
+      },
     };
 
     // Call the function handler's .run() method
@@ -64,9 +64,9 @@ describe('askConcierge Failure Injection & Fallback Tests', () => {
         accessibilityMode: {
           mobilityRouting: false,
           highContrast: false,
-          simplifiedLanguage: false
-        }
-      }
+          simplifiedLanguage: false,
+        },
+      },
     };
 
     const response = await (askConcierge as any).run(mockRequest);
@@ -78,5 +78,140 @@ describe('askConcierge Failure Injection & Fallback Tests', () => {
     assert.strictEqual(response.data.detectedLanguage, 'es');
     assert.ok(response.data.answerText.toLowerCase().includes('ruta'));
     assert.ok(response.data.route);
+  });
+
+  it('should resolve gate keyword to correct node in deterministic mode', async () => {
+    const mockRequest = {
+      data: {
+        query: 'Where is gate 3? force_timeout',
+        sessionId: 'sess_123',
+        userId: 'user_123',
+        role: 'fan' as const,
+        language: 'en',
+        accessibilityMode: {
+          mobilityRouting: false,
+          highContrast: false,
+          simplifiedLanguage: false,
+        },
+      },
+    };
+
+    const response = await (askConcierge as any).run(mockRequest);
+
+    assert.ok(response);
+    assert.strictEqual(response.success, true);
+    assert.ok(response.data);
+    assert.strictEqual(response.data.detectedLanguage, 'en');
+    assert.ok(response.data.route, 'Gate keyword should produce a route');
+    assert.ok(response.data.route.path.includes('gate_3'), 'Route should include gate_3');
+  });
+
+  it('should resolve food keyword to correct node in deterministic mode', async () => {
+    const mockRequest = {
+      data: {
+        query: 'I want burgers force_timeout',
+        sessionId: 'sess_123',
+        userId: 'user_123',
+        role: 'fan' as const,
+        language: 'en',
+        accessibilityMode: {
+          mobilityRouting: false,
+          highContrast: false,
+          simplifiedLanguage: false,
+        },
+      },
+    };
+
+    const response = await (askConcierge as any).run(mockRequest);
+
+    assert.ok(response);
+    assert.strictEqual(response.success, true);
+    assert.ok(response.data);
+    assert.strictEqual(response.data.detectedLanguage, 'en');
+    assert.ok(response.data.route, 'Food keyword should produce a route');
+    assert.ok(
+      response.data.route.path.includes('concession_burgers'),
+      'Route should include concession_burgers',
+    );
+  });
+
+  it('should resolve seating keyword to correct node in deterministic mode', async () => {
+    const mockRequest = {
+      data: {
+        query: 'Take me to section 110 force_timeout',
+        sessionId: 'sess_123',
+        userId: 'user_123',
+        role: 'fan' as const,
+        language: 'en',
+        accessibilityMode: {
+          mobilityRouting: false,
+          highContrast: false,
+          simplifiedLanguage: false,
+        },
+      },
+    };
+
+    const response = await (askConcierge as any).run(mockRequest);
+
+    assert.ok(response);
+    assert.strictEqual(response.success, true);
+    assert.ok(response.data);
+    assert.strictEqual(response.data.detectedLanguage, 'en');
+    assert.ok(response.data.route, 'Seating keyword should produce a route');
+    assert.ok(response.data.route.path.includes('seating_110'), 'Route should include seating_110');
+  });
+
+  it('should auto-detect French when query contains toilette', async () => {
+    const mockRequest = {
+      data: {
+        query: 'Où est la toilette?',
+        sessionId: 'sess_123',
+        userId: 'user_123',
+        role: 'fan' as const,
+        language: 'en',
+        accessibilityMode: {
+          mobilityRouting: false,
+          highContrast: false,
+          simplifiedLanguage: false,
+        },
+      },
+    };
+
+    const response = await (askConcierge as any).run(mockRequest);
+
+    assert.ok(response);
+    assert.strictEqual(response.success, true);
+    assert.ok(response.data);
+    assert.strictEqual(response.data.detectedLanguage, 'fr');
+    // "toilette" contains "toilet" so it matches the restroom keyword → restroom_101
+    assert.ok(response.data.route, 'French restroom query should produce a route');
+    assert.ok(response.data.route.path.includes('restroom_101'));
+  });
+
+  it('should auto-detect Portuguese when query contains onde', async () => {
+    const mockRequest = {
+      data: {
+        query: 'Onde fica o gate 1?',
+        sessionId: 'sess_123',
+        userId: 'user_123',
+        role: 'fan' as const,
+        language: 'en',
+        accessibilityMode: {
+          mobilityRouting: false,
+          highContrast: false,
+          simplifiedLanguage: false,
+        },
+      },
+    };
+
+    const response = await (askConcierge as any).run(mockRequest);
+
+    assert.ok(response);
+    assert.strictEqual(response.success, true);
+    assert.ok(response.data);
+    assert.strictEqual(response.data.detectedLanguage, 'pt');
+    // "gate 1" maps to gate_1, start defaults to gate_1, so identity route
+    assert.ok(response.data.route, 'Portuguese gate query should produce a route');
+    assert.deepStrictEqual(response.data.route.path, ['gate_1']);
   });
 });

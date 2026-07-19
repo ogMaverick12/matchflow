@@ -42,7 +42,7 @@ async function hmac(data: string, secret: string): Promise<string> {
     enc().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const sig = await crypto.subtle.sign('HMAC', key, enc().encode(data));
   return bufToBase64Url(new Uint8Array(sig));
@@ -80,14 +80,16 @@ export async function signSession(userId: string, role: Role): Promise<string> {
   const claims: SessionClaims = {
     userId,
     role,
-    exp: Math.floor(Date.now() / 1000) + TTL_SECONDS
+    exp: Math.floor(Date.now() / 1000) + TTL_SECONDS,
   };
   const payload = `${base64UrlEncode(header)}.${base64UrlEncode(claims)}`;
   const sig = await hmac(payload, getSecret());
   return `${payload}.${sig}`;
 }
 
-export async function verifySession(token: string | undefined | null): Promise<SessionClaims | null> {
+export async function verifySession(
+  token: string | undefined | null,
+): Promise<SessionClaims | null> {
   if (!token) return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -101,6 +103,7 @@ export async function verifySession(token: string | undefined | null): Promise<S
     if (typeof claims.exp !== 'number' || claims.exp < Math.floor(Date.now() / 1000)) return null;
     return claims;
   } catch {
+    // Malformed or unverifiable token — return null (do not log token data)
     return null;
   }
 }

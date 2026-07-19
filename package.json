@@ -10,19 +10,22 @@
     "dev": "npm run dev --workspaces --if-present",
     "build": "npm run build -w @matchflow/types && npm run build -w @matchflow/concourse-graph && npm run build -w @matchflow/ui && npm run build -w @matchflow/flow-engine && npm run build -w @matchflow/web && npm run build -w @matchflow/functions --if-present",
     "start": "npm run start --workspaces --if-present",
-
     "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
-
-    "test:unit": "npx tsx test/unit/concourse-graph.test.ts test/unit/flow-engine.test.ts",
-    "test:integration": "npx tsx test/integration/security-rules.test.ts test/integration/failure-injection.test.ts test/integration/batch-surge.test.ts",
-    "test:regression": "npx tsx test/regression/golden-set.test.ts",
+    "test:unit": "npx tsx --test test/unit/concourse-graph.test.ts test/unit/flow-engine.test.ts test/unit/analytics.test.ts && npx tsx --tsconfig apps/web/tsconfig.json --test test/unit/db.test.ts && npx tsx --import ./test/helpers/loader.ts --test test/unit/auth.test.ts",
+    "test:integration": "npx tsx --test test/integration/security-rules.test.ts test/integration/failure-injection.test.ts test/integration/batch-surge.test.ts",
+    "test:regression": "npx tsx --test test/regression/golden-set.test.ts",
     "test:e2e": "npx playwright test test/e2e/matchday-scenario.test.ts test/accessibility/axe-scan.test.ts",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:regression && npm run test:e2e"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
+    "@eslint/js": "^8.57.1",
     "@firebase/rules-unit-testing": "^5.0.1",
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "prettier": "^3.9.5",
+    "typescript-eslint": "^8.64.0"
   }
 }

@@ -32,11 +32,11 @@ Ops surface (Next.js) │   apps/web (ops)    │
 
 ## Key Exports
 
-| Export | Description |
-|---|---|
-| `MERCEDES_BENZ_NODES` | Array of all stadium nodes (gates, concessions, restrooms, elevators, seating) |
-| `MERCEDES_BENZ_EDGES` | Directed weighted edges between nodes |
-| `ACCESSIBLE_ADJ` | Precomputed adjacency list — stairs and escalators removed (§13 performance) |
+| Export                               | Description                                                                                |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `MERCEDES_BENZ_NODES`                | Array of all stadium nodes (gates, concessions, restrooms, elevators, seating)             |
+| `MERCEDES_BENZ_EDGES`                | Directed weighted edges between nodes                                                      |
+| `ACCESSIBLE_ADJ`                     | Precomputed adjacency list — stairs and escalators removed (§13 performance)               |
 | `findShortestPath(start, end, opts)` | Dijkstra with live congestion weights; returns `{ path, totalTimeSeconds }` or `{ error }` |
 
 ## Usage
@@ -45,8 +45,8 @@ Ops surface (Next.js) │   apps/web (ops)    │
 import { findShortestPath, MERCEDES_BENZ_NODES } from '@matchflow/concourse-graph';
 
 const result = findShortestPath('gate_1', 'concession_burgers', {
-  mobilityAccessible: true,   // uses ACCESSIBLE_ADJ subgraph
-  zoneCongestion: { Zone_A: 0.85 }  // live density → edge weight inflation
+  mobilityAccessible: true, // uses ACCESSIBLE_ADJ subgraph
+  zoneCongestion: { Zone_A: 0.85 }, // live density → edge weight inflation
 });
 
 if (result.error) {

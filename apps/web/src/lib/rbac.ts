@@ -11,7 +11,8 @@
 //   organizer-only : delete incidents, write concourseGraph/congestionState
 
 export type Role = 'fan' | 'volunteer' | 'staff' | 'organizer';
-export type Collection = 'concourseGraph' | 'congestionState' | 'reports' | 'incidents' | 'dispatches' | 'sessions';
+export type Collection =
+  'concourseGraph' | 'congestionState' | 'reports' | 'incidents' | 'dispatches' | 'sessions';
 export type Action = 'read' | 'write' | 'create' | 'update' | 'delete';
 
 export const VALID_ROLES: Role[] = ['fan', 'volunteer', 'staff', 'organizer'];
@@ -28,7 +29,7 @@ export function enforceServer(
   role: Role,
   action: Action,
   collection: Collection,
-  opts: { documentAuthorId?: string; requestUserId?: string } = {}
+  opts: { documentAuthorId?: string; requestUserId?: string } = {},
 ): void {
   if (role === 'organizer') {
     // Organizer can do everything except mutate dispatches (immutable audit).
@@ -60,7 +61,12 @@ export function enforceServer(
     if (action === 'read') {
       if (role === 'staff') return;
       if (role === 'volunteer') {
-        if (opts.documentAuthorId && opts.requestUserId && opts.documentAuthorId === opts.requestUserId) return;
+        if (
+          opts.documentAuthorId &&
+          opts.requestUserId &&
+          opts.documentAuthorId === opts.requestUserId
+        )
+          return;
         throw new AuthError('Volunteer can only read own reports.', 403);
       }
       throw new AuthError(`Role ${role} cannot read reports.`, 403);
@@ -97,7 +103,7 @@ export function enforceClient(
   role: Role,
   action: Action,
   collection: Collection,
-  opts: { documentAuthorId?: string; requestUserId?: string } = {}
+  opts: { documentAuthorId?: string; requestUserId?: string } = {},
 ): void {
   enforceServer(role, action, collection, opts);
 }

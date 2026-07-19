@@ -132,7 +132,7 @@ jobs:
       - name: Run axe accessibility scan
         run: npx playwright test test/accessibility/axe-scan.test.ts
         env:
-          WEB_BASE_URL: ''  # Let Playwright start Next.js dev server
+          WEB_BASE_URL: '' # Let Playwright start Next.js dev server
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -161,7 +161,7 @@ jobs:
       - name: Run server-side RBAC integration tests
         run: npx playwright test test/integration/api-rbac.test.ts
         env:
-          WEB_BASE_URL: ''  # Let Playwright start Next.js dev server
+          WEB_BASE_URL: '' # Let Playwright start Next.js dev server
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -178,8 +178,8 @@ jobs:
     name: AI Golden-Set Regression (150 cases)
     runs-on: ubuntu-latest
     needs: integration-tests
-    # Non-blocking: report results but don't gate the build
-    continue-on-error: true
+    # Golden-set failures now gate the build
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -223,7 +223,7 @@ jobs:
       - name: Run matchday E2E scenario
         run: npx playwright test test/e2e/matchday-scenario.test.ts
         env:
-          WEB_BASE_URL: ''  # Let Playwright start Next.js dev server
+          WEB_BASE_URL: '' # Let Playwright start Next.js dev server
       - name: Upload E2E report and videos
         if: always()
         uses: actions/upload-artifact@v4

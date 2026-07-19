@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    // empty body → fan
+    // Empty or malformed body → default to fan role
   }
 
   const requested = (body.role || 'fan') as Role;
@@ -32,14 +32,14 @@ export async function POST(req: NextRequest) {
 
   const res = NextResponse.json({
     success: true,
-    session: { userId, role: requested }
+    session: { userId, role: requested },
   });
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: 60 * 60 * 24 * 7
+    maxAge: 60 * 60 * 24 * 7,
   });
   return res;
 }
@@ -53,6 +53,6 @@ export async function GET(req: NextRequest) {
   }
   return NextResponse.json({
     authenticated: true,
-    session: { userId: claims.userId, role: claims.role }
+    session: { userId: claims.userId, role: claims.role },
   });
 }

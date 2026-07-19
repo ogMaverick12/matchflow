@@ -34,8 +34,9 @@ async function tick(role: UserRole): Promise<void> {
   try {
     // First tick (counter 0) also issues reset so every run starts from SEED.
     await db.writeCongestionBatch(undefined, { tick: _tick, reset: _tick === 0 });
-  } catch {
-    // Silently swallow write errors — simulation continues
+  } catch (err) {
+    // Write errors are non-fatal — simulation continues on the next tick
+    console.warn('[CongestionSimulator] Tick failed:', err);
   }
   _tick += 1;
 }
@@ -47,16 +48,18 @@ async function tick(role: UserRole): Promise<void> {
  */
 export function startCongestionSimulation(role: UserRole): void {
   if (role !== 'organizer') {
-    console.info('[CongestionSimulator] Skipped — only organizers publish congestion (role: ' + role + ')');
     return;
   }
   if (_tickIntervalId) return; // already running
   _tick = 0;
 
-  console.info('[CongestionSimulator] Starting — delegating to deterministic server simulator');
   // Run first tick immediately so the UI has data on load.
-  tick(role).catch(() => {});
-  _tickIntervalId = setInterval(() => tick(role).catch(() => {}), TICK_INTERVAL_MS);
+  tick(role).catch((err) => console.warn('[CongestionSimulator] Initial tick failed:', err));
+  _tickIntervalId = setInterval(
+    () =>
+      tick(role).catch((err) => console.warn('[CongestionSimulator] Interval tick failed:', err)),
+    TICK_INTERVAL_MS,
+  );
 }
 
 /** Stop the simulation. */
@@ -64,7 +67,6 @@ export function stopCongestionSimulation(): void {
   if (_tickIntervalId) {
     clearInterval(_tickIntervalId);
     _tickIntervalId = null;
-    console.info('[CongestionSimulator] Stopped');
   }
 }
 
@@ -74,10 +76,8 @@ export function stopCongestionSimulation(): void {
  */
 export function triggerDemoSpike(zone: string, targetDensity: number, durationMs: number): void {
   if (!ZONES.includes(zone)) {
-    console.warn(`[CongestionSimulator] Unknown zone: ${zone}`);
     return;
   }
-  console.info(`[CongestionSimulator] Manual demo spike: ${zone} → ${targetDensity}`);
   void db.writeCongestionBatch([{ zoneId: zone, densityScore: targetDensity }]);
   void durationMs; // server spike duration is governed by the scripted timeline
 }

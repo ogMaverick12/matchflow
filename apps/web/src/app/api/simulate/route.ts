@@ -25,7 +25,12 @@ const MAX_DENSITY = 0.95;
 const TICK_INTERVAL_MS = 8_000; // 8s tick — matches §6 fixed interval
 
 // Scripted demo spikes (§16) — keyed on elapsed ms from simulation start.
-const DEMO_SPIKES: Array<{ afterMs: number; zone: string; targetDensity: number; durationMs: number }> = [
+const DEMO_SPIKES: Array<{
+  afterMs: number;
+  zone: string;
+  targetDensity: number;
+  durationMs: number;
+}> = [
   { afterMs: 20_000, zone: 'Zone_A', targetDensity: 0.88, durationMs: 45_000 }, // halftime surge
   { afterMs: 90_000, zone: 'Zone_C', targetDensity: 0.82, durationMs: 30_000 }, // food rush
   { afterMs: 150_000, zone: 'Zone_B', targetDensity: 0.76, durationMs: 25_000 }, // exit wave
@@ -61,7 +66,8 @@ function step(elapsedMs: number): void {
       if (elapsedMs < end) {
         // Spike active — blend toward target density.
         const blend = 0.25;
-        _state[spike.zone] = _state[spike.zone] + blend * (spike.targetDensity - _state[spike.zone]);
+        _state[spike.zone] =
+          _state[spike.zone] + blend * (spike.targetDensity - _state[spike.zone]);
         _activeSpikeEnd[spike.zone] = end;
         continue;
       } else if (_activeSpikeEnd[spike.zone] && elapsedMs >= _activeSpikeEnd[spike.zone]) {
@@ -85,13 +91,24 @@ const KV_READY = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
 
 async function setState(rows: Array<{ zoneId: string; densityScore: number }>) {
   if (!KV_READY) return;
-  try { await kv.set('congestionState', rows); } catch { /* in-memory fallback below */ }
+  try {
+    await kv.set('congestionState', rows);
+  } catch (err) {
+    console.warn('[setState] KV write failed, using in-memory fallback:', err);
+  }
 }
 
-function toRows(): Array<{ zoneId: string; name: string; level: string; densityScore: number; lastUpdated: number; trend: 'stable' }> {
+function toRows(): Array<{
+  zoneId: string;
+  name: string;
+  level: string;
+  densityScore: number;
+  lastUpdated: number;
+  trend: 'stable';
+}> {
   return ZONES.map((z) => ({
     zoneId: z,
-    name: z.replace('_', ' '),
+    name: z.replaceAll('_', ' '),
     level: '100',
     densityScore: parseFloat(_state[z].toFixed(3)),
     lastUpdated: Date.now(),
@@ -147,7 +164,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof AuthError) {
       return NextResponse.json(
         { error: err.message, code: err.status === 403 ? 'permission-denied' : 'unauthenticated' },
-        { status: err.status }
+        { status: err.status },
       );
     }
     return NextResponse.json({ error: 'internal' }, { status: 500 });

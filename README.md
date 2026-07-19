@@ -10,8 +10,7 @@ MatchFlow is a next-generation, dual-surface crowd intelligence platform designe
 
 MatchFlow uses a monorepo structure separating core business logic from consumer surfaces:
 
-`
-                                ┌────────────────────────────────┐
+`                                ┌────────────────────────────────┐
                                 │       MatchFlow Monorepo       │
                                 └────────────────────────────────┘
                                                 │
@@ -28,8 +27,7 @@ MatchFlow uses a monorepo structure separating core business logic from consumer
                 │                               │ imports                     │
                 │                ┌──────────────▼──────────────┐              │
                 └───────────────▶│ packages/concourse-graph    │◀─────────────┘
-                                 └─────────────────────────────┘
-`
+                                 └─────────────────────────────┘`
 
 - **Fan Concierge Surface (pps/web/(fan))**: Mobile-first Web App providing voice/text concierge routing, live crowd density heatmaps, and post-match transit recommendations.
 - **Operations Surface (pps/web/(ops))**: High-contrast, accessibility-first operations console for stadium staff to view active incidents, monitor dispatcher coverage, and approve AI dispatch suggestions.
@@ -54,10 +52,12 @@ MatchFlow uses a monorepo structure separating core business logic from consumer
 **Yes, for production features, but local simulation runs out-of-the-box.**
 
 ### 1. Gemini API Key (GEMINI_API_KEY)
+
 - Required by the Flow Engine and Cloud Functions to communicate with the Gemini models (gemini-3.5-flash for latency-critical paths, gemini-3.5-pro for reasoning-critical ops summaries).
 - **Offline Fallback:** If the key is missing or calls time out, MatchFlow automatically switches to deterministic in-memory routing and heuristics (e.g. Dijkstra on standard edges, weighted egress calculation).
 
 ### 2. Firebase Credentials (NEXT_PUBLIC_FIREBASE_API_KEY)
+
 - Required to connect to Firestore and Performance Monitoring.
 - **Mock DB:** When running in development, MatchFlow uses a structured, in-memory local state adapter (db.ts) simulating Firestore subscriptions.
 
@@ -71,6 +71,7 @@ npm install
 `
 
 ### 1. Run Web Applications (Fan & Ops)
+
 To start the Next.js development server running both surfaces:
 `ash
 npm run dev -w apps/web
@@ -78,12 +79,14 @@ npm run dev -w apps/web
 Open [http://localhost:3000](http://localhost:3000) for the Fan interface and [http://localhost:3000/dashboard](http://localhost:3000/dashboard) for the Ops Dashboard.
 
 ### 2. Run Accessibility & E2E Tests
+
 Tests are orchestrated via Playwright. Verify focus orders, ARIA structures, and routing flows:
 `ash
 npx playwright test
 `
 
 ### 3. Run Golden-Set Regression Suite
+
 Evaluates the 150-query multi-language benchmark suite against expected classifications:
 `ash
 npm run test -w apps/functions

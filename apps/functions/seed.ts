@@ -31,10 +31,34 @@ const db = admin.firestore();
 
 // ── 1. congestionState (REQUIRED by askConcierge) ───────────────────────
 const ZONES = [
-  { zoneId: 'Zone_A', name: 'Zone A (North East)', level: '100', densityScore: 0.25, trend: 'stable' as const },
-  { zoneId: 'Zone_B', name: 'Zone B (South East)', level: '100', densityScore: 0.35, trend: 'stable' as const },
-  { zoneId: 'Zone_C', name: 'Zone C (South West)', level: '100', densityScore: 0.15, trend: 'stable' as const },
-  { zoneId: 'Zone_D', name: 'Zone D (North West)', level: '100', densityScore: 0.20, trend: 'stable' as const },
+  {
+    zoneId: 'Zone_A',
+    name: 'Zone A (North East)',
+    level: '100',
+    densityScore: 0.25,
+    trend: 'stable' as const,
+  },
+  {
+    zoneId: 'Zone_B',
+    name: 'Zone B (South East)',
+    level: '100',
+    densityScore: 0.35,
+    trend: 'stable' as const,
+  },
+  {
+    zoneId: 'Zone_C',
+    name: 'Zone C (South West)',
+    level: '100',
+    densityScore: 0.15,
+    trend: 'stable' as const,
+  },
+  {
+    zoneId: 'Zone_D',
+    name: 'Zone D (North West)',
+    level: '100',
+    densityScore: 0.2,
+    trend: 'stable' as const,
+  },
 ];
 
 async function seedCongestionState() {
@@ -46,7 +70,6 @@ async function seedCongestionState() {
     });
   }
   await batch.commit();
-  console.log(`✓ congestionState: ${ZONES.length} zones seeded`);
 }
 
 // ── 2. concourseGraph (static map, public-read) ───────────────────────────
@@ -56,7 +79,6 @@ async function seedConcourseGraph() {
     batch.set(db.collection('concourseGraph').doc(node.id), node);
   }
   await batch.commit();
-  console.log(`✓ concourseGraph: ${MERCEDES_BENZ_NODES.length} nodes seeded`);
 }
 
 // ── 3. Demo incidents + source reports (optional, for ops console) ─────────
@@ -89,15 +111,12 @@ async function seedDemoIncidents() {
     createdAt: now - 300000,
     updatedAt: now,
   });
-  console.log('✓ demo incident + source report seeded (Zone_A)');
 }
 
 async function main() {
-  console.log(`Seeding MatchFlow → project "${PROJECT_ID}"`);
   await seedCongestionState();
   await seedConcourseGraph();
   await seedDemoIncidents();
-  console.log('Done. Deploy functions with: firebase deploy --only functions');
 }
 
 main().catch((e) => {

@@ -33,7 +33,7 @@ const BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
 async function mintToken(
   request: any,
   role: 'fan' | 'volunteer' | 'staff' | 'organizer',
-  userId?: string
+  userId?: string,
 ): Promise<string> {
   const res = await request.post(`${BASE_URL}/api/auth/session`, {
     data: { role, userId },
@@ -61,7 +61,9 @@ async function apiPost(request: any, token: string, body: any) {
 }
 
 test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
-  test('(a) unauthenticated POST /api/db is rejected (401 unauthenticated)', async ({ request }) => {
+  test('(a) unauthenticated POST /api/db is rejected (401 unauthenticated)', async ({
+    request,
+  }) => {
     const res = await request.post(`${BASE_URL}/api/db`, {
       headers: { 'Content-Type': 'application/json' },
       data: { coll: 'incidents', op: 'insert', doc: { summary: 'x' } },
@@ -102,7 +104,7 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     const ownJson = await ownRead.json();
     expect(
       ownJson.data.every((r: any) => r.authorId === 'user_diego'),
-      'volunteer must only see their own reports'
+      'volunteer must only see their own reports',
     ).toBe(true);
 
     // Volunteer CANNOT read incidents.
@@ -110,7 +112,9 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     expect(incRead.status(), 'volunteer read of incidents must be denied').toBe(403);
   });
 
-  test('(d) staff can read incidents + the §16 seeded demo incident, but cannot mutate dispatches', async ({ request }) => {
+  test('(d) staff can read incidents + the §16 seeded demo incident, but cannot mutate dispatches', async ({
+    request,
+  }) => {
     const staffToken = await mintToken(request, 'staff', 'user_priya');
 
     // Staff CAN read incidents — and the deterministic §16 demo incident exists.
@@ -153,7 +157,9 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     expect(dispDelete.status(), 'staff delete of dispatch must be denied (immutable)').toBe(403);
   });
 
-  test('(e) only organizer can WRITE congestionState; fan/staff/volunteer cannot', async ({ request }) => {
+  test('(e) only organizer can WRITE congestionState; fan/staff/volunteer cannot', async ({
+    request,
+  }) => {
     const organizerToken = await mintToken(request, 'organizer', 'user_marcus');
     const staffToken = await mintToken(request, 'staff', 'user_priya');
     const volToken = await mintToken(request, 'volunteer', 'user_diego');
@@ -164,7 +170,14 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
       coll: 'congestionState',
       op: 'seedCongestion',
       rows: [
-        { zoneId: 'Zone_A', name: 'Zone A', level: '100', densityScore: 0.9, lastUpdated: Date.now(), trend: 'up' },
+        {
+          zoneId: 'Zone_A',
+          name: 'Zone A',
+          level: '100',
+          densityScore: 0.9,
+          lastUpdated: Date.now(),
+          trend: 'up',
+        },
       ],
     });
     expect(orgWrite.status(), 'organizer write congestionState must succeed').toBe(200);
@@ -180,7 +193,16 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     const staffWrite = await apiPost(request, staffToken, {
       coll: 'congestionState',
       op: 'seedCongestion',
-      rows: [{ zoneId: 'Zone_B', name: 'Zone B', level: '100', densityScore: 0.1, lastUpdated: Date.now(), trend: 'down' }],
+      rows: [
+        {
+          zoneId: 'Zone_B',
+          name: 'Zone B',
+          level: '100',
+          densityScore: 0.1,
+          lastUpdated: Date.now(),
+          trend: 'down',
+        },
+      ],
     });
     expect(staffWrite.status(), 'staff write congestionState must be denied').toBe(403);
 
@@ -188,7 +210,16 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     const volWrite = await apiPost(request, volToken, {
       coll: 'congestionState',
       op: 'seedCongestion',
-      rows: [{ zoneId: 'Zone_C', name: 'Zone C', level: '100', densityScore: 0.1, lastUpdated: Date.now(), trend: 'down' }],
+      rows: [
+        {
+          zoneId: 'Zone_C',
+          name: 'Zone C',
+          level: '100',
+          densityScore: 0.1,
+          lastUpdated: Date.now(),
+          trend: 'down',
+        },
+      ],
     });
     expect(volWrite.status(), 'volunteer write congestionState must be denied').toBe(403);
 
@@ -196,12 +227,23 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     const fanWrite = await apiPost(request, fanToken, {
       coll: 'congestionState',
       op: 'seedCongestion',
-      rows: [{ zoneId: 'Zone_D', name: 'Zone D', level: '100', densityScore: 0.1, lastUpdated: Date.now(), trend: 'down' }],
+      rows: [
+        {
+          zoneId: 'Zone_D',
+          name: 'Zone D',
+          level: '100',
+          densityScore: 0.1,
+          lastUpdated: Date.now(),
+          trend: 'down',
+        },
+      ],
     });
     expect(fanWrite.status(), 'fan write congestionState must be denied').toBe(403);
   });
 
-  test('fan→ops shared store: organizer congestion write is readable by staff (one engine, two views)', async ({ request }) => {
+  test('fan→ops shared store: organizer congestion write is readable by staff (one engine, two views)', async ({
+    request,
+  }) => {
     const organizerToken = await mintToken(request, 'organizer', 'user_marcus');
     const staffToken = await mintToken(request, 'staff', 'user_priya');
 
@@ -210,10 +252,38 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
       coll: 'congestionState',
       op: 'seedCongestion',
       rows: [
-        { zoneId: 'Zone_A', name: 'Zone A', level: '100', densityScore: 0.88, lastUpdated: Date.now(), trend: 'up' },
-        { zoneId: 'Zone_B', name: 'Zone B', level: '100', densityScore: 0.35, lastUpdated: Date.now(), trend: 'stable' },
-        { zoneId: 'Zone_C', name: 'Zone C', level: '100', densityScore: 0.15, lastUpdated: Date.now(), trend: 'stable' },
-        { zoneId: 'Zone_D', name: 'Zone D', level: '100', densityScore: 0.20, lastUpdated: Date.now(), trend: 'stable' },
+        {
+          zoneId: 'Zone_A',
+          name: 'Zone A',
+          level: '100',
+          densityScore: 0.88,
+          lastUpdated: Date.now(),
+          trend: 'up',
+        },
+        {
+          zoneId: 'Zone_B',
+          name: 'Zone B',
+          level: '100',
+          densityScore: 0.35,
+          lastUpdated: Date.now(),
+          trend: 'stable',
+        },
+        {
+          zoneId: 'Zone_C',
+          name: 'Zone C',
+          level: '100',
+          densityScore: 0.15,
+          lastUpdated: Date.now(),
+          trend: 'stable',
+        },
+        {
+          zoneId: 'Zone_D',
+          name: 'Zone D',
+          level: '100',
+          densityScore: 0.2,
+          lastUpdated: Date.now(),
+          trend: 'stable',
+        },
       ],
     });
 
@@ -222,6 +292,9 @@ test.describe('§12 Server-Side RBAC — real /api/db enforcement', () => {
     expect(staffRead.status(), 'staff read of congestionState must succeed').toBe(200);
     const zones = (await staffRead.json()).data;
     const zoneA = zones.find((z: any) => z.zoneId === 'Zone_A');
-    expect(zoneA?.densityScore, 'staff must observe the organizer-pushed live signal in Zone_A').toBe(0.88);
+    expect(
+      zoneA?.densityScore,
+      'staff must observe the organizer-pushed live signal in Zone_A',
+    ).toBe(0.88);
   });
 });

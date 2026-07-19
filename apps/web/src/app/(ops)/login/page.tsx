@@ -46,23 +46,39 @@ export default function LoginPage() {
   };
 
   return (
-    <main style={{
-      minHeight: '100vh',
-      backgroundColor: 'var(--bg-base)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: '24px',
-    }}>
-
-      <div className="glass-panel" style={{
-        padding: '32px',
-        maxWidth: '440px',
-        width: '100%',
-      }}>
+    <main
+      style={{
+        minHeight: '100vh',
+        backgroundColor: 'var(--bg-base)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '24px',
+      }}
+    >
+      <div
+        className="glass-panel"
+        style={{
+          padding: '32px',
+          maxWidth: '440px',
+          width: '100%',
+        }}
+      >
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <Shield size={48} color="var(--primary-accent)" style={{ marginBottom: '12px', display: 'inline-block' }} />
-          <h2 className="display-title" style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
+          <Shield
+            size={48}
+            color="var(--primary-accent)"
+            style={{ marginBottom: '12px', display: 'inline-block' }}
+          />
+          <h2
+            className="display-title"
+            style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              margin: '0 0 6px 0',
+              color: 'var(--text-primary)',
+            }}
+          >
             Operations Login
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
@@ -77,7 +93,8 @@ export default function LoginPage() {
               padding: '14px',
               borderRadius: '6px',
               border: '1px solid var(--border-color)',
-              backgroundColor: selected === 'volunteer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
+              backgroundColor:
+                selected === 'volunteer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
               color: selected === 'volunteer' ? 'var(--primary-accent)' : 'var(--text-primary)',
               fontWeight: 'bold',
               fontSize: '14px',
@@ -85,11 +102,13 @@ export default function LoginPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              transition: 'background-color 200ms ease'
+              transition: 'background-color 200ms ease',
             }}
           >
             <span>Volunteer (Diego)</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Submit one-tap reports</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              Submit one-tap reports
+            </span>
           </button>
 
           <button
@@ -98,7 +117,8 @@ export default function LoginPage() {
               padding: '14px',
               borderRadius: '6px',
               border: '1px solid var(--border-color)',
-              backgroundColor: selected === 'staff' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
+              backgroundColor:
+                selected === 'staff' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
               color: selected === 'staff' ? 'var(--primary-accent)' : 'var(--text-primary)',
               fontWeight: 'bold',
               fontSize: '14px',
@@ -106,11 +126,13 @@ export default function LoginPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              transition: 'background-color 200ms ease'
+              transition: 'background-color 200ms ease',
             }}
           >
             <span>Staff Console (Priya)</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Incident feed &amp; dispatches</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              Incident feed &amp; dispatches
+            </span>
           </button>
 
           <button
@@ -119,7 +141,8 @@ export default function LoginPage() {
               padding: '14px',
               borderRadius: '6px',
               border: '1px solid var(--border-color)',
-              backgroundColor: selected === 'organizer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
+              backgroundColor:
+                selected === 'organizer' ? 'rgba(251, 191, 36, 0.1)' : 'var(--bg-surface-elevated)',
               color: selected === 'organizer' ? 'var(--primary-accent)' : 'var(--text-primary)',
               fontWeight: 'bold',
               fontSize: '14px',
@@ -127,14 +150,18 @@ export default function LoginPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              transition: 'background-color 200ms ease'
+              transition: 'background-color 200ms ease',
             }}
           >
             <span>Organizer Portal (Marcus)</span>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Roster allocation &amp; admin</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              Roster allocation &amp; admin
+            </span>
           </button>
 
-          <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '12px 0' }}></div>
+          <div
+            style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '12px 0' }}
+          ></div>
 
           <button
             onClick={() => handleRoleSelect('fan')}
@@ -147,7 +174,7 @@ export default function LoginPage() {
               fontWeight: 'bold',
               fontSize: '14px',
               cursor: 'pointer',
-              transition: 'background-color 200ms ease'
+              transition: 'background-color 200ms ease',
             }}
           >
             Return to Public Fan Surface

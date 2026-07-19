@@ -55,31 +55,33 @@ async function navigate(page: Page, path: string) {
   // Set the session role in localStorage, preserving accessibility settings
   await page.evaluate((r) => {
     const existing = localStorage.getItem('matchflow_session');
-    const parsed = existing ? JSON.parse(existing) : {
-      language: 'en',
-      accessibilityMode: {
-        mobilityRouting: false,
-        highContrast: false,
-        simplifiedLanguage: false
-      }
-    };
-    localStorage.setItem('matchflow_session', JSON.stringify({
-      ...parsed,
-      sessionId: parsed.sessionId || 'test_session_id',
-      userId: parsed.userId || 'test_user_id',
-      role: r,
-      lastActive: Date.now()
-    }));
+    const parsed = existing
+      ? JSON.parse(existing)
+      : {
+          language: 'en',
+          accessibilityMode: {
+            mobilityRouting: false,
+            highContrast: false,
+            simplifiedLanguage: false,
+          },
+        };
+    localStorage.setItem(
+      'matchflow_session',
+      JSON.stringify({
+        ...parsed,
+        sessionId: parsed.sessionId || 'test_session_id',
+        userId: parsed.userId || 'test_user_id',
+        role: r,
+        lastActive: Date.now(),
+      }),
+    );
   }, role);
 
   // Navigate to target path
   await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle', timeout: 15000 });
 }
 
-
-
 test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
-
   // ─────────────────────────────────────────
   // ACT 1: Fan Journey
   // ─────────────────────────────────────────
@@ -115,7 +117,7 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     const placeholder = await inputArea.getAttribute('placeholder');
     expect(
       ariaLabel || placeholder,
-      'Chat input must have aria-label or placeholder for accessibility'
+      'Chat input must have aria-label or placeholder for accessibility',
     ).toBeTruthy();
   });
 
@@ -146,7 +148,9 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     expect(hasExitContent, 'Exit planner should reference exit/departure options').toBe(true);
   });
 
-  test('ACT 1 Step 5 — Fan accessibility settings page is reachable and labeled', async ({ page }) => {
+  test('ACT 1 Step 5 — Fan accessibility settings page is reachable and labeled', async ({
+    page,
+  }) => {
     await navigate(page, '/accessibility');
 
     await assertVisible(page, 'main', 'Accessibility settings main area');
@@ -167,14 +171,17 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     await assertVisible(page, 'main', 'Login page main area');
 
     // Must have a login form or auth button
-    const authElement = page.locator(
-      'form, button, input[type="email"], input[type="password"], [data-testid="login"]'
-    ).first();
-    await expect(authElement, 'Login page must have authentication UI').toBeVisible({ timeout: 8000 });
-
+    const authElement = page
+      .locator('form, button, input[type="email"], input[type="password"], [data-testid="login"]')
+      .first();
+    await expect(authElement, 'Login page must have authentication UI').toBeVisible({
+      timeout: 8000,
+    });
   });
 
-  test('ACT 2 Step 2 — Ops dashboard renders the incident management interface', async ({ page }) => {
+  test('ACT 2 Step 2 — Ops dashboard renders the incident management interface', async ({
+    page,
+  }) => {
     await navigate(page, '/dashboard');
 
     await assertVisible(page, 'main', 'Dashboard main area');
@@ -189,7 +196,9 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     expect(hasOpsContent, 'Dashboard should show incident management content').toBe(true);
   });
 
-  test('ACT 2 Step 3 — Ops admin page is reachable and shows management interface', async ({ page }) => {
+  test('ACT 2 Step 3 — Ops admin page is reachable and shows management interface', async ({
+    page,
+  }) => {
     await navigate(page, '/admin');
 
     await assertVisible(page, 'main', 'Admin main area');
@@ -213,7 +222,9 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     expect(hasVolunteerContent, 'Volunteer view should show assignment content').toBe(true);
   });
 
-  test('ACT 3 Step 2 — Volunteer view has proper ARIA roles for screen reader navigation', async ({ page }) => {
+  test('ACT 3 Step 2 — Volunteer view has proper ARIA roles for screen reader navigation', async ({
+    page,
+  }) => {
     await navigate(page, '/volunteer');
 
     // Must have landmark roles for screen reader navigation
@@ -246,11 +257,16 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     await assertVisible(page, 'main', 'Sustainability main area');
 
     const bodyText = await page.locator('body').innerText();
-    const hasSustainabilityContent = /sustainab|eco|green|recycl|carbon|electric|environment|energy/i.test(bodyText);
-    expect(hasSustainabilityContent, 'Sustainability page should show eco-related content').toBe(true);
+    const hasSustainabilityContent =
+      /sustainab|eco|green|recycl|carbon|electric|environment|energy/i.test(bodyText);
+    expect(hasSustainabilityContent, 'Sustainability page should show eco-related content').toBe(
+      true,
+    );
   });
 
-  test('ACT 5 — One engine, two views: fan query causes ops dashboard to show a new incident', async ({ page }) => {
+  test('ACT 5 — One engine, two views: fan query causes ops dashboard to show a new incident', async ({
+    page,
+  }) => {
     // Open the fan chat in one tab and submit a query
     await navigate(page, '/chat');
     await assertVisible(page, 'main', 'Chat page loaded');
@@ -272,8 +288,7 @@ test.describe('§16 Matchday Simulation — End-to-End Scenario', () => {
     const hasIncident = /incident|bottleneck|zone|congestion|spike/i.test(bodyText);
     expect(
       hasIncident,
-      'Ops dashboard must show at least one incident after a fan routing query — proving one engine, two views'
+      'Ops dashboard must show at least one incident after a fan routing query — proving one engine, two views',
     ).toBe(true);
   });
 });
-

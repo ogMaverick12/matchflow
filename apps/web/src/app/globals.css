@@ -1,27 +1,27 @@
 :root {
   /* Near-black navy base */
   --bg-base: #020612;
-  
+
   /* Elevated navy-charcoal glass surfaces */
   --bg-surface: rgba(15, 23, 42, 0.7);
   --bg-surface-elevated: rgba(30, 41, 59, 0.8);
-  
+
   /* Floodlight Amber (sole primary accent) */
   --primary-accent: #fbbf24;
-  
+
   /* Pitch Green (success/stable states) */
   --secondary-accent: #10b981;
-  
+
   /* Alert Red */
   --alert-accent: #ef4444;
-  
+
   /* Text values matching contrast rules */
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  
+
   /* Translucent amber border */
   --border-color: rgba(251, 191, 36, 0.15);
-  
+
   /* Typography fallbacks */
   --font-family-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   --font-family-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Tahoma', sans-serif;
@@ -98,9 +98,9 @@ body {
   font-size: 16px;
   line-height: 1.5;
   min-height: 100vh;
-  
+
   /* Background Grain Texture Overlay */
-  background-image: 
+  background-image:
     radial-gradient(circle at 50% 0%, rgba(251, 191, 36, 0.05) 0%, transparent 50%),
     url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.015'/%3E%3C/svg%3E");
 }
@@ -147,7 +147,9 @@ button {
   backdrop-filter: blur(12px);
   border-radius: 8px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  transition: transform 150ms ease, border-color 200ms ease;
+  transition:
+    transform 150ms ease,
+    border-color 200ms ease;
 }
 
 .glass-panel:hover {
@@ -172,7 +174,12 @@ button {
 .pitch-divider {
   border: 0;
   height: 1px;
-  background-image: linear-gradient(to right, transparent, rgba(16, 185, 129, 0.3) 50%, transparent);
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    rgba(16, 185, 129, 0.3) 50%,
+    transparent
+  );
   margin: 24px 0;
 }
 
@@ -190,7 +197,12 @@ button {
 }
 
 .floodlight-sweep {
-  background: linear-gradient(90deg, var(--bg-surface-elevated), rgba(251, 191, 36, 0.25), var(--bg-surface-elevated));
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface-elevated),
+    rgba(251, 191, 36, 0.25),
+    var(--bg-surface-elevated)
+  );
   background-size: 200% 200%;
   animation: floodlightSweep 2s ease infinite;
 }
@@ -198,12 +210,24 @@ button {
 /* ----------------------------------------------------
    Global Spacing Rhythm & Spacing Utilities (8px Grid)
    ---------------------------------------------------- */
-.spacing-xs { margin-bottom: 4px; }
-.spacing-sm { margin-bottom: 8px; }
-.spacing-md { margin-bottom: 16px; }
-.spacing-lg { margin-bottom: 24px; }
-.spacing-xl { margin-bottom: 32px; }
-.spacing-xxl { margin-bottom: 48px; }
+.spacing-xs {
+  margin-bottom: 4px;
+}
+.spacing-sm {
+  margin-bottom: 8px;
+}
+.spacing-md {
+  margin-bottom: 16px;
+}
+.spacing-lg {
+  margin-bottom: 24px;
+}
+.spacing-xl {
+  margin-bottom: 32px;
+}
+.spacing-xxl {
+  margin-bottom: 48px;
+}
 
 /* Global layout alignment styling */
 .display-title {
