@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 /npm-debug.log*
+*.log
 
 # Next.js build output
 .next/
@@ -50,6 +51,16 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 *-debug.log
+firebase-export-*/
+*.rtdb/
+
+# Next.js dev server log (local run artifact)
+nextdev.log
+next.log
+
+# Emulator runtime logs
+emu.log
+emu_err.log
 
 # OS metadata
 .DS_Store

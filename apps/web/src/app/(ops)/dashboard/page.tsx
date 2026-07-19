@@ -7,6 +7,8 @@ import { db, runSimulatorTick } from '@/lib/db';
 import { Incident, CongestionZone } from '@matchflow/types';
 import { SeverityBadge, AlertTriangle, AlertCircle, CheckCircle, Info } from '@matchflow/ui';
 import { Play, RefreshCw, Layers } from 'lucide-react';
+import { SharedLiveSignal } from '@/components/SharedLiveSignal';
+import { ChallengeAlignmentFooter, ChallengeAlignmentModal } from '@/components/ChallengeAlignment';
 
 export default function DashboardPage() {
   const { session, simulateOffline } = useSession();
@@ -18,6 +20,9 @@ export default function DashboardPage() {
   // Security Verification states
   const [verificationResult, setVerificationResult] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+
+  // §16 step 6 — Challenge Alignment modal (reuses §14 matrix)
+  const [alignmentOpen, setAlignmentOpen] = useState(false);
 
   // Subscriptions to incidents and congestion state
   useEffect(() => {
@@ -115,6 +120,9 @@ export default function DashboardPage() {
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
             Incident Triage and Dispatch Command Feed
           </p>
+          <div style={{ marginTop: '8px' }}>
+            <SharedLiveSignal surface="ops" live={!simulateOffline} />
+          </div>
         </div>
         
         {/* Simulator controls */}
@@ -338,6 +346,10 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* §16 step 6 — Challenge Alignment reveal (reuses §14 matrix) */}
+      <ChallengeAlignmentFooter onOpen={() => setAlignmentOpen(true)} />
+      <ChallengeAlignmentModal open={alignmentOpen} onClose={() => setAlignmentOpen(false)} />
     </div>
   );
 }

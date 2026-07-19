@@ -71,13 +71,12 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run concourse-graph unit tests (P0)
-        run: npx tsx test/unit/concourse-graph.test.ts
-      - name: Run flow-engine unit tests (P0)
-        run: npx tsx test/unit/flow-engine.test.ts
+      - name: Run unit test matrix (P0)
+        run: npm run test:unit
 
   # ──────────────────────────────────────────
   # Stage 4: Integration Tests (P1 + P2)
+  # Requires a Firestore emulator for the security-rules suite (gates the build).
   # ──────────────────────────────────────────
   integration-tests:
     name: Integration Tests
@@ -91,10 +90,25 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Run Firestore security rules tests (P1)
-        run: npx tsx test/integration/security-rules.test.ts
-      - name: Run failure injection + fallback tests (P2)
-        run: npx tsx test/integration/failure-injection.test.ts
+      - name: Install Java 21 (Firestore emulator requirement)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Start Firestore emulator
+        run: npx firebase emulators:start --only firestore --project matchflow-demo &
+        env:
+          FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080'
+      - name: Wait for Firestore emulator
+        run: |
+          node -e "const net=require('net');const wait=(ms)=>new Promise(r=>setTimeout(r,ms));(async()=>{for(let i=0;i<60;i++){const s=net.connect(8080,'127.0.0.1');const ok=await new Promise(res=>{s.once('connect',()=>res(true));s.once('error',()=>res(false));});if(ok){s.destroy();console.log('emulator ready');process.exit(0);}try{s.destroy();}catch(e){}await wait(1000);}console.error('emulator did not start');process.exit(1);})()"
+      - name: Run integration test matrix (P1 + P2, gates build)
+        run: npm run test:integration
+        env:
+          FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080'
+      - name: Stop Firestore emulator
+        if: always()
+        run: pkill -f "firebase emulators" || true
 
   # ──────────────────────────────────────────
   # Stage 5: Accessibility Scan (P4)
@@ -128,7 +142,37 @@ jobs:
           retention-days: 30
 
   # ──────────────────────────────────────────
+  # Stage 5b: RBAC API Integration (server-side enforcement)
+  # ──────────────────────────────────────────
+  rbac-api:
+    name: RBAC API Integration
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run server-side RBAC integration tests
+        run: npx playwright test test/integration/api-rbac.test.ts
+        env:
+          WEB_BASE_URL: ''  # Let Playwright start Next.js dev server
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-rbac-report
+          path: playwright-report/
+          retention-days: 30
+
+  # ──────────────────────────────────────────
   # Stage 6: Golden-Set AI Regression (P3 — non-blocking in CI)
+  # Reports the REAL pass-rate (persisted to a citable file) but does not gate.
   # ──────────────────────────────────────────
   golden-set:
     name: AI Golden-Set Regression (150 cases)
@@ -145,9 +189,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run golden-set regression (all 5 languages, 150 queries)
-        run: npx tsx test/regression/golden-set.test.ts
+        run: npm run test:regression
         env:
           GEMINI_API_KEY: 'ci_mock_key'
+      - name: Print persisted pass-rate
+        if: always()
+        run: cat test/regression/golden-set-report.txt || true
+      - name: Upload golden-set report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-set-report
+          path: test/regression/golden-set-report.*
+          retention-days: 30
 
   # ──────────────────────────────────────────
   # Stage 7: E2E Matchday Scenario (P5)

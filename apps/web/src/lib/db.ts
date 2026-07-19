@@ -195,15 +195,15 @@ export function subscribeToDispatches(
   onError?: (err: Error) => void
 ): () => void {
   try { enforceRules(role, 'read', 'dispatches'); } catch (e) { onError?.(e as Error); return () => {}; }
-  let alive = true;
-  const poll = async () => {
-    if (!alive) return;
-    try { callback(await apiGet<Dispatch[]>('dispatches')); }
-    catch (e) { onError?.(e as Error); }
-  };
-  poll();
-  const id = setInterval(poll, 4000);
-  return () => { alive = false; clearInterval(id); };
+  return subscribeWithDedup(
+    async () => {
+      const all = await apiGet<Dispatch[]>('dispatches');
+      // Stable sort so an unchanged set yields an identical signature.
+      return [...all].sort((a, b) => a.id.localeCompare(b.id));
+    },
+    callback,
+    onError
+  );
 }
 
 export async function createDispatch(

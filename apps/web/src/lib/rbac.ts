@@ -2,7 +2,9 @@
 // so it can be used by both server routes and 'use client' components.
 //
 // Matrix (authoritative; mirrors the documented Firebase firestore.rules reference):
-//   fan            : read public (concourseGraph, congestionState); no writes
+//   fan            : read public (concourseGraph, congestionState); may submit a
+//                    crowd-signal report (concierge → ops link, §16) but cannot
+//                    read the ops incident board or anyone's reports
 //   volunteer      : create reports + read OWN reports
 //   staff/organizer: read/write incidents + read/create dispatches
 //                    (dispatches immutable audit — no update/delete)
@@ -48,7 +50,11 @@ export function enforceServer(
 
   if (collection === 'reports') {
     if (action === 'create') {
-      if (role === 'volunteer' || role === 'staff') return;
+      // Volunteers/staff file reports. Fans may also submit a crowd-signal
+      // report from the concierge surface (§16 "same live moment" link) — the
+      // server ties it to the verified fan identity; fans can never read the
+      // ops incident board or anyone else's reports.
+      if (role === 'fan' || role === 'volunteer' || role === 'staff') return;
       throw new AuthError(`Role ${role} cannot create reports.`, 403);
     }
     if (action === 'read') {

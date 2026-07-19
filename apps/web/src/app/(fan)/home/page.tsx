@@ -1,12 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from '@/context/SessionContext';
 import { MessageSquare, Map, Navigation, Wifi, WifiOff, Activity, ShieldAlert } from 'lucide-react';
+import { SharedLiveSignal } from '@/components/SharedLiveSignal';
+import { ChallengeAlignmentFooter, ChallengeAlignmentModal } from '@/components/ChallengeAlignment';
 
 export default function FanHomePage() {
   const { session, simulateOffline, setSimulateOffline } = useSession();
+  const [alignmentOpen, setAlignmentOpen] = useState(false);
 
   return (
     <div style={{ maxWidth: '480px', margin: '0 auto' }}>
@@ -29,6 +32,9 @@ export default function FanHomePage() {
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: '0 0 16px 0' }}>
           Atlanta, GA · FIFA World Cup Semifinal Host
         </p>
+        <div style={{ marginBottom: '16px' }}>
+          <SharedLiveSignal surface="fan" live={!simulateOffline} />
+        </div>
         {/* §9: Status badge — no information conveyed by colour alone (text present) */}
         <div
           role="status"
@@ -224,6 +230,10 @@ export default function FanHomePage() {
           <span>Go to Operations Console Login</span>
         </Link>
       </div>
+
+      {/* §16 step 6 — Challenge Alignment reveal (reuses §14 matrix) */}
+      <ChallengeAlignmentFooter onOpen={() => setAlignmentOpen(true)} />
+      <ChallengeAlignmentModal open={alignmentOpen} onClose={() => setAlignmentOpen(false)} />
     </div>
   );
 }

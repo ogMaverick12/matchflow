@@ -1,6 +1,21 @@
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
 const fs = require('fs');
 
+// Gate CI: any failed assertion aborts with a non-zero exit code instead of
+// merely logging to console.error (which would let a broken rule pass the
+// build). Each check pushes into `failures`; we exit(1) if anything failed.
+const failures = [];
+
+async function check(label, fn) {
+  try {
+    await fn();
+    console.log(`✅ PASS: ${label}`);
+  } catch (err) {
+    failures.push({ label, err });
+    console.error(`❌ FAIL: ${label}:`, err && err.message ? err.message : err);
+  }
+}
+
 async function main() {
   const rules = fs.readFileSync('firestore.rules', 'utf8');
   const testEnv = await initializeTestEnvironment({
@@ -14,41 +29,28 @@ async function main() {
 
   console.log('Testing security rules...');
 
-  // Test 1: Anonymous Fan reading incidents
   const fanContext = testEnv.authenticatedContext('fan_user_id', { role: 'fan' });
   const fanDb = fanContext.firestore();
-  
-  console.log('Test 1: Fan trying to read /incidents...');
-  try {
-    await assertFails(fanDb.collection('incidents').get());
-    console.log('✅ PASS: Fan was rejected from reading /incidents');
-  } catch (err) {
-    console.error('❌ FAIL: Fan was NOT rejected from reading /incidents:', err);
-  }
 
-  // Test 2: Volunteer trying to read /incidents
+  await check('Fan was rejected from reading /incidents', async () => {
+    await assertFails(fanDb.collection('incidents').get());
+  });
+
   const volunteerContext = testEnv.authenticatedContext('volunteer_user_id', { role: 'volunteer' });
   const volunteerDb = volunteerContext.firestore();
-  console.log('Test 2: Volunteer trying to read /incidents...');
-  try {
-    await assertFails(volunteerDb.collection('incidents').get());
-    console.log('✅ PASS: Volunteer was rejected from reading /incidents');
-  } catch (err) {
-    console.error('❌ FAIL: Volunteer was NOT rejected from reading /incidents:', err);
-  }
 
-  // Test 3: Staff trying to read /incidents
+  await check('Volunteer was rejected from reading /incidents', async () => {
+    await assertFails(volunteerDb.collection('incidents').get());
+  });
+
   const staffContext = testEnv.authenticatedContext('staff_user_id', { role: 'staff' });
   const staffDb = staffContext.firestore();
-  console.log('Test 3: Staff trying to read /incidents...');
-  try {
-    await assertSucceeds(staffDb.collection('incidents').get());
-    console.log('✅ PASS: Staff was allowed to read /incidents');
-  } catch (err) {
-    console.error('❌ FAIL: Staff was rejected from reading /incidents:', err);
-  }
 
-  // Test 4: Volunteer reading someone else\'s report
+  await check('Staff was allowed to read /incidents', async () => {
+    await assertSucceeds(staffDb.collection('incidents').get());
+  });
+
+  // Seed a report owned by another user (rules disabled).
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await db.collection('reports').doc('report_1').set({
@@ -58,15 +60,11 @@ async function main() {
     });
   });
 
-  console.log("Test 4: Volunteer trying to read someone else\'s report (report_1)...");
-  try {
+  await check("Volunteer was rejected from reading other user's report", async () => {
     await assertFails(volunteerDb.collection('reports').doc('report_1').get());
-    console.log("✅ PASS: Volunteer was rejected from reading other user\'s report");
-  } catch (err) {
-    console.error("❌ FAIL: Volunteer was NOT rejected from reading other user\'s report:", err);
-  }
+  });
 
-  // Test 5: Volunteer reading their own report
+  // Seed a report owned by the volunteer (rules disabled).
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     await db.collection('reports').doc('report_2').set({
@@ -76,16 +74,20 @@ async function main() {
     });
   });
 
-  console.log("Test 5: Volunteer trying to read their own report (report_2)...");
-  try {
+  await check("Volunteer was allowed to read their own report", async () => {
     await assertSucceeds(volunteerDb.collection('reports').doc('report_2').get());
-    console.log("✅ PASS: Volunteer was allowed to read their own report");
-  } catch (err) {
-    console.error("❌ FAIL: Volunteer was rejected from reading their own report:", err);
-  }
+  });
 
   await testEnv.cleanup();
-  console.log('All tests completed.');
+
+  if (failures.length > 0) {
+    console.error(`\n${failures.length} security-rules check(s) FAILED.`);
+    process.exit(1);
+  }
+  console.log('All security-rules tests passed.');
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error('Security-rules test harness error:', err);
+  process.exit(1);
+});

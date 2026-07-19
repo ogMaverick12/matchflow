@@ -8,8 +8,10 @@ process.env.GEMINI_API_KEY = 'mock_key'; // Trigger Gemini mock path in Cloud Fu
 
 // No firebase-admin mock needed at module level — we inject via _setDb below.
 
-// Mock GoogleGenerativeAI library
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// Mock the real Gemini REST call used by flow-engine's callGemini() (which
+// uses global fetch to the generativelanguage endpoint, NOT the SDK). We stub
+// global.fetch so each query returns a Gemini-shaped functionCall/response
+// derived from the golden case's expected behavior.
 import { mock } from 'node:test';
 
 // Define the 150-query Golden Set (30 queries * 5 languages)
@@ -256,38 +258,50 @@ function mockGeminiBehavior(query: string, language: string): { toolName?: strin
   return { text: "I'm sorry, I cannot answer that." };
 }
 
-// Intercept model call in GoogleGenerativeAI
-const mockGenerativeModel = {
-  generateContent: async (promptStr: string) => {
-    // Extract original user query from prompt: "User: <query>\nLanguage preference..."
-    const match = promptStr.match(/User:\s*([^\n]+)/);
-    const query = match ? match[1].trim().replace(/\r$/, '') : '';
-    
-    // Find matching case
-    const testCase = GOLDEN_SET.find(c => c.query === query);
-    console.log(`[DEBUG] query: "${query}" | matched: ${!!testCase} | expected: ${testCase?.expectedBehavior}`);
-
-    const lang = testCase?.language || 'en';
-    const behavior = mockGeminiBehavior(query, lang);
-
-    return {
-      response: {
-        functionCalls: () => {
-          if (behavior.toolName) {
-            return [{ name: behavior.toolName, args: behavior.args }];
-          }
-          return null;
-        },
-        text: () => behavior.text || ''
-      }
-    };
+// Intercept the real Gemini REST call (flow-engine's callGemini uses global
+// fetch to the generativelanguage endpoint). We return a Gemini-shaped
+// `functionCall` response derived from the golden case's expected behavior so
+// the engine's tool-execution + grounding path runs for real.
+const originalFetch = global.fetch;
+const fetchMock = async (url: string | URL | Request, init?: any): Promise<Response> => {
+  const u = url.toString();
+  // Only intercept the Gemini generateContent endpoint; let everything else
+  // (e.g. grounding calls) fall through to the original fetch.
+  if (!u.includes('generativelanguage.googleapis.com') || !u.includes('generateContent')) {
+    return originalFetch(url as any, init as any);
   }
-};
 
-// Apply mocking to GoogleGenerativeAI
-mock.method(GoogleGenerativeAI.prototype, 'getGenerativeModel', function() {
-  return mockGenerativeModel;
-});
+  let body: any = {};
+  try { body = JSON.parse(init?.body ?? '{}'); } catch { body = {}; }
+  const userText: string = body?.contents?.[0]?.parts?.[0]?.text ?? '';
+  const qMatch = userText.match(/<user_input>(.*?)<\/user_input>/s);
+  const query = (qMatch ? qMatch[1] : userText).trim();
+
+  const langMatch = userText.match(/Language preference:\s*(\w+)/);
+  const lang = langMatch ? langMatch[1] : 'en';
+
+  const behavior = mockGeminiBehavior(query, lang);
+
+  const functionCallPart = behavior.toolName
+    ? { functionCall: { name: behavior.toolName, args: behavior.args } }
+    : { text: behavior.text || "I'm sorry, I cannot answer that." };
+
+  const geminiResponse = {
+    candidates: [
+      {
+        content: {
+          parts: [functionCallPart],
+        },
+      },
+    ],
+  };
+
+  return new Response(JSON.stringify(geminiResponse), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+global.fetch = fetchMock as any;
 
 // Import callable handler and DB injection hook
 import { askConcierge, _setDb } from '../../apps/functions/src/index.ts';
@@ -317,7 +331,7 @@ describe('AI Behavior / Golden-Set Regression Suite', () => {
       const mockRequest = {
         data: {
           query: testCase.query,
-          sessionId: 'sess_golden',
+          sessionId: `sess_golden_${GOLDEN_SET.indexOf(testCase)}`,
           userId: 'user_golden',
           role: 'fan' as const,
           language: testCase.language,
@@ -331,7 +345,7 @@ describe('AI Behavior / Golden-Set Regression Suite', () => {
 
       try {
         const response = await (askConcierge as any).run(mockRequest);
-        
+
         assert.ok(response);
         assert.strictEqual(response.success, true);
         assert.ok(response.data);
@@ -352,21 +366,52 @@ describe('AI Behavior / Golden-Set Regression Suite', () => {
         } else {
           // Verify that tool citation exists
           const expectedTool = testCase.expectedBehavior;
-          assert.ok(answerLower.includes(`grounded by tool: ${expectedTool.toLowerCase()}`));
+          const got = answerLower.includes(`grounded by tool: ${expectedTool.toLowerCase()}`);
+          if (!got) {
+            throw new Error(`missing 'grounded by tool: ${expectedTool.toLowerCase()}' | answer=${response.data.answerText.slice(0, 90)}`);
+          }
           passedCount++;
         }
       } catch (err) {
-        console.error(`Failed golden case: "${testCase.query}" [${testCase.language}] - Error:`, err);
+        const reason = (err as Error)?.message || String(err);
+        console.error(`FAIL [${testCase.language}] "${testCase.query}" (${testCase.expectedBehavior}) :: ${reason}`);
       }
     }
 
     const passRate = (passedCount / GOLDEN_SET.length) * 100;
+    const summary =
+      `Golden-set pass rate: ${passRate.toFixed(1)}% (${passedCount}/${GOLDEN_SET.length})`;
     console.log(`\n==============================================`);
     console.log(`  GOLDEN SET REGRESSION RESULTS`);
     console.log(`  Total Cases: ${GOLDEN_SET.length}`);
     console.log(`  Passed Cases: ${passedCount}`);
-    console.log(`  Pass Rate: ${passRate.toFixed(2)}%`);
+    console.log(`  ${summary}`);
     console.log(`==============================================\n`);
+
+    // Persist the exact pass-rate so the submission can cite the real number
+    // (§18 recommended reporting the real figure, non-blocking). The file is
+    // committed-friendly and read by CI artifacts / human review.
+    try {
+      const fs = require('fs');
+      const outDir = process.cwd();
+      const report = {
+        total: GOLDEN_SET.length,
+        passed: passedCount,
+        passRatePct: Number(passRate.toFixed(1)),
+        generatedAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(
+        `${outDir}/test/regression/golden-set-report.json`,
+        JSON.stringify(report, null, 2) + '\n'
+      );
+      fs.writeFileSync(
+        `${outDir}/test/regression/golden-set-report.txt`,
+        `${summary}\n`
+      );
+      console.log(`[golden-set] wrote test/regression/golden-set-report.json + .txt`);
+    } catch (writeErr) {
+      console.error('[golden-set] failed to persist report:', writeErr);
+    }
 
     assert.strictEqual(passRate, 100.0);
   });

@@ -24,7 +24,26 @@ const MEM: Record<string, any[]> = {
     { zoneId: 'Zone_D', name: 'Zone D (North West)', level: '100', densityScore: 0.20, lastUpdated: Date.now(), trend: 'stable' },
   ],
   reports: [],
-  incidents: [],
+  incidents: [
+    // §16 deterministic pre-seeded demo incident so the ops dashboard shows a
+    // real card on first paint (no waiting for a fan query to arrive). Stable
+    // id + timestamps keep the §16 "same live moment" reveal reproducible.
+    {
+      id: 'inc_demo_zoneA',
+      sourceReportIds: ['rep_demo_seed'],
+      summary: 'Congestion spike — Zone A north-east concourse',
+      description:
+        'Seeded volunteer reports flagged a crowd build-up near the Zone A concessions ' +
+        'at halftime. Live signal confirms elevated density; routing is being re-scored away from the zone.',
+      severity: 'high',
+      confidence: 0.92,
+      status: 'active',
+      zoneId: 'Zone_A',
+      level: '100',
+      createdAt: 1750000000000,
+      updatedAt: 1750000000000,
+    },
+  ],
   dispatches: [],
 };
 
@@ -71,7 +90,13 @@ export async function GET(req: NextRequest) {
     // Read checks are per-collection; for reports we allow staff/all and
     // volunteers read-own only (we return the full set here and let the
     // per-document filter happen in the response for volunteer safety).
-    enforceServer(claims.role as Role, 'read', COLL_MAP[coll]);
+    // For volunteer reads of reports, the matrix allows reading ONLY their own
+    // documents — pass the author/requester opts so enforceServer permits it.
+    // (The per-document filter below still strips anything not authored by them.)
+    enforceServer(claims.role as Role, 'read', COLL_MAP[coll], {
+      documentAuthorId: claims.userId,
+      requestUserId: claims.userId,
+    });
 
     let data = await read(coll);
     if (coll === 'reports' && claims.role === 'volunteer') {

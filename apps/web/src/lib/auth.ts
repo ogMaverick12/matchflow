@@ -105,15 +105,17 @@ export async function verifySession(token: string | undefined | null): Promise<S
   }
 }
 
-// Extract the token from either the cookie (preferred), a Bearer header, or an
-// explicitly provided token (e.g. from a client fetch / test). Allows tests to
-// pass a token without needing the cookie jar.
+// Extract the token. An explicit Bearer Authorization header takes precedence
+// over a cookie — an API client that presents a token explicitly should not be
+// shadowed by a stale browser session cookie. The cookie is still honored when
+// no Bearer header is present (the normal browser flow). This ordering is what
+// lets the RBAC integration tests authenticate multiple roles in one run.
 export function extractToken(req: NextRequest, explicit?: string | null): string | null {
+  const auth = req.headers.get('authorization');
+  if (auth?.startsWith('Bearer ')) return auth.slice(7);
   if (explicit) return explicit;
   const fromCookie = req.cookies.get(COOKIE_NAME)?.value;
   if (fromCookie) return fromCookie;
-  const auth = req.headers.get('authorization');
-  if (auth?.startsWith('Bearer ')) return auth.slice(7);
   return null;
 }
 
