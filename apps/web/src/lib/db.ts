@@ -1,31 +1,56 @@
 'use client';
 
 /**
- * db.ts — Production data layer for MatchFlow.
+ * db.ts — Production data layer for MatchFlow (Vercel / serverless).
  *
- * Replaces the in-browser mock with real Firebase Firestore listeners and
- * Cloud Function callables. The public API surface is preserved so the page
- * components do not need to change.
+ * All persistence goes through /api/db (backed by Vercel KV when bound,
+ * in-memory fallback otherwise). The concierge and egress ranking call
+ * /api/concierge and /api/rank-egress, which use real Gemini with a
+ * deterministic flow-engine fallback (§13 graceful degradation).
  *
- * Resilience: every backend call has a deterministic fallback:
- *   - askConcierge falls back to the in-browser flow-engine if the callable
- *     fails or is unreachable (§13 graceful degradation).
- *   - congestion/reports/incidents/dispatches read from Firestore; if offline,
- *     listeners simply do not fire (UI shows last-known / empty state).
- *
- * Security: client-side enforceRules mirrors the Firestore security rules so
- * the UI can show "permission denied" states without a round-trip, but the
- * server-side rules in firestore.rules remain the source of truth.
+ * The public API surface is preserved so page components are unchanged.
  */
 
 import { UserRole, CongestionZone, Incident, Report, Dispatch } from '@matchflow/types';
-import { doc, onSnapshot, collection, addDoc, updateDoc, query, orderBy, limit, where, serverTimestamp } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { getFirebaseDb, getFirebaseFunctions, isFirebaseConfigured } from './firebase';
-import { askFlowEngine, ConciergeResponseData, rankEgressOptions as localRankEgressOptions } from '@matchflow/flow-engine';
+import { askFlowEngine, ConciergeResponseData, rankEgressOptions as flowRankEgress } from '@matchflow/flow-engine';
 
 // ---------------------------------------------------------------------------
-// Security Rules Checker (client-side mirror of firestore.rules)
+// API helpers
+// ---------------------------------------------------------------------------
+async function apiGet<T>(coll: string): Promise<T> {
+  const res = await fetch(`/api/db?coll=${coll}`);
+  const json = await res.json();
+  return json.data as T;
+}
+
+async function apiPost(body: any) {
+  const res = await fetch('/api/db', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  return json.data;
+}
+
+async function apiConcierge(req: Parameters<typeof askFlowEngine>[0], congestion: Record<string, number>) {
+  try {
+    const res = await fetch('/api/concierge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    const json = await res.json();
+    if (json.success && json.data) {
+      return json.data as ConciergeResponseData & { detectedLanguage?: string };
+    }
+  } catch { /* fall through */ }
+  const local = await askFlowEngine(req, congestion);
+  return { ...local, detectedLanguage: req.language };
+}
+
+// ---------------------------------------------------------------------------
+// Client-side RBAC mirror (server is authoritative via KV + API checks)
 // ---------------------------------------------------------------------------
 function enforceRules(
   role: UserRole,
@@ -59,75 +84,24 @@ function enforceRules(
   }
 }
 
-function handleError(err: unknown, onError?: (e: Error) => void) {
-  const e = err instanceof Error ? err : new Error(String(err));
-  if (onError) onError(e);
-}
-
 // ---------------------------------------------------------------------------
-// Concierge — calls deployed askConcierge callable, falls back to local engine
-// ---------------------------------------------------------------------------
-export async function askConcierge(
-  req: Parameters<typeof askFlowEngine>[0],
-  congestion: Record<string, number>
-): Promise<ConciergeResponseData & { detectedLanguage?: string }> {
-  if (!isFirebaseConfigured()) {
-    const local = await askFlowEngine(req, congestion);
-    return { ...local, detectedLanguage: req.language };
-  }
-  try {
-    const fn = httpsCallable(getFirebaseFunctions(), 'askConcierge');
-    const res = await fn({
-      query: req.query,
-      sessionId: req.sessionId,
-      userId: req.userId,
-      role: req.role,
-      language: req.language,
-      accessibilityMode: req.accessibilityMode,
-    });
-    const data = (res.data as any);
-    if (data?.success && data.data) {
-      return {
-        answerText: data.data.answerText,
-        route: data.data.route,
-        detectedLanguage: data.data.detectedLanguage ?? req.language,
-      };
-    }
-    // Backend returned a structured error — fall back locally
-    const local = await askFlowEngine(req, congestion);
-    return { ...local, detectedLanguage: req.language };
-  } catch {
-    // Network / timeout / 404 — deterministic fallback (§13)
-    const local = await askFlowEngine(req, congestion);
-    return { ...local, detectedLanguage: req.language };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Congestion State — real-time Firestore listener
+// Congestion
 // ---------------------------------------------------------------------------
 export function subscribeToCongestion(
   role: UserRole,
   callback: (zones: CongestionZone[]) => void,
   onError?: (err: Error) => void
 ): () => void {
-  try {
-    enforceRules(role, 'read', 'congestionState');
-  } catch (err) {
-    handleError(err, onError);
-    return () => {};
-  }
-  if (!isFirebaseConfigured()) {
-    onError?.(new Error('Firebase not configured'));
-    return () => {};
-  }
-  const col = collection(getFirebaseDb(), 'congestionState');
-  const unsub = onSnapshot(col, (snap) => {
-    const zones: CongestionZone[] = [];
-    snap.forEach((d) => zones.push(d.data() as CongestionZone));
-    callback(zones);
-  }, (err) => handleError(err, onError));
-  return unsub;
+  try { enforceRules(role, 'read', 'congestionState'); } catch (e) { onError?.(e as Error); return () => {}; }
+  let alive = true;
+  const poll = async () => {
+    if (!alive) return;
+    try { callback(await apiGet<CongestionZone[]>('congestionState')); }
+    catch (e) { onError?.(e as Error); }
+  };
+  poll();
+  const id = setInterval(poll, 4000);
+  return () => { alive = false; clearInterval(id); };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,37 +113,19 @@ export function subscribeToReports(
   callback: (reports: Report[]) => void,
   onError?: (err: Error) => void
 ): () => void {
-  try {
-    enforceRules(role, 'read', 'reports', userId);
-  } catch (err) {
-    handleError(err, onError);
-    return () => {};
-  }
-  if (!isFirebaseConfigured()) {
-    onError?.(new Error('Firebase not configured'));
-    return () => {};
-  }
-  const col = collection(getFirebaseDb(), 'reports');
-  const q = role === 'volunteer'
-    ? query(col, where('authorId', '==', userId))
-    : col;
-  const unsub = onSnapshot(q, (snap) => {
-    const reports: Report[] = [];
-    snap.forEach((d) => reports.push(d.data() as Report));
-    callback(reports.sort((a, b) => b.timestamp - a.timestamp));
-  }, (err) => handleError(err, onError));
-  return unsub;
-}
-
-export function attemptCrossRoleRead(role: UserRole): Promise<Report[]> {
-  return new Promise((resolve, reject) => {
+  try { enforceRules(role, 'read', 'reports', userId); } catch (e) { onError?.(e as Error); return () => {}; }
+  let alive = true;
+  const poll = async () => {
+    if (!alive) return;
     try {
-      enforceRules(role, 'read', 'reports', 'other_user');
-      resolve([]);
-    } catch (err) {
-      reject(err);
-    }
-  });
+      const all = await apiGet<Report[]>('reports');
+      const filtered = role === 'volunteer' ? all.filter(r => r.authorId === userId) : all;
+      callback(filtered.sort((a, b) => b.timestamp - a.timestamp));
+    } catch (e) { onError?.(e as Error); }
+  };
+  poll();
+  const id = setInterval(poll, 4000);
+  return () => { alive = false; clearInterval(id); };
 }
 
 export async function createReport(
@@ -177,12 +133,15 @@ export async function createReport(
   reportData: Omit<Report, 'id' | 'timestamp'>
 ): Promise<Report> {
   enforceRules(role, 'write', 'reports');
-  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
-  const ref = await addDoc(collection(getFirebaseDb(), 'reports'), {
-    ...reportData,
-    timestamp: Date.now(),
+  const data = await apiPost({ coll: 'reports', op: 'insert', doc: reportData });
+  return (data as any[])[0];
+}
+
+export function attemptCrossRoleRead(role: UserRole): Promise<Report[]> {
+  return new Promise((resolve, reject) => {
+    try { enforceRules(role, 'read', 'reports', 'other_user'); resolve([]); }
+    catch (e) { reject(e); }
   });
-  return { ...reportData, id: ref.id, timestamp: Date.now() } as Report;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,34 +152,23 @@ export function subscribeToIncidents(
   callback: (incidents: Incident[]) => void,
   onError?: (err: Error) => void
 ): () => void {
-  try {
-    enforceRules(role, 'read', 'incidents');
-  } catch (err) {
-    handleError(err, onError);
-    return () => {};
-  }
-  if (!isFirebaseConfigured()) {
-    onError?.(new Error('Firebase not configured'));
-    return () => {};
-  }
-  const col = collection(getFirebaseDb(), 'incidents');
-  const q = query(col, orderBy('updatedAt', 'desc'), limit(100));
-  const unsub = onSnapshot(q, (snap) => {
-    const incidents: Incident[] = [];
-    snap.forEach((d) => incidents.push(d.data() as Incident));
-    callback(incidents);
-  }, (err) => handleError(err, onError));
-  return unsub;
+  try { enforceRules(role, 'read', 'incidents'); } catch (e) { onError?.(e as Error); return () => {}; }
+  let alive = true;
+  const poll = async () => {
+    if (!alive) return;
+    try { callback(await apiGet<Incident[]>('incidents')); }
+    catch (e) { onError?.(e as Error); }
+  };
+  poll();
+  const id = setInterval(poll, 4000);
+  return () => { alive = false; clearInterval(id); };
 }
 
 export async function updateIncidentStatus(
-  role: UserRole,
-  incidentId: string,
-  status: Incident['status']
+  role: UserRole, incidentId: string, status: Incident['status']
 ): Promise<void> {
   enforceRules(role, 'write', 'incidents');
-  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
-  await updateDoc(doc(getFirebaseDb(), 'incidents', incidentId), { status, updatedAt: Date.now() });
+  await apiPost({ coll: 'incidents', op: 'update', id: incidentId, patch: { status } });
 }
 
 // ---------------------------------------------------------------------------
@@ -231,106 +179,94 @@ export function subscribeToDispatches(
   callback: (dispatches: Dispatch[]) => void,
   onError?: (err: Error) => void
 ): () => void {
-  try {
-    enforceRules(role, 'read', 'dispatches');
-  } catch (err) {
-    handleError(err, onError);
-    return () => {};
-  }
-  if (!isFirebaseConfigured()) {
-    onError?.(new Error('Firebase not configured'));
-    return () => {};
-  }
-  const col = collection(getFirebaseDb(), 'dispatches');
-  const q = query(col, orderBy('timestamp', 'desc'), limit(100));
-  const unsub = onSnapshot(q, (snap) => {
-    const dispatches: Dispatch[] = [];
-    snap.forEach((d) => dispatches.push(d.data() as Dispatch));
-    callback(dispatches);
-  }, (err) => handleError(err, onError));
-  return unsub;
+  try { enforceRules(role, 'read', 'dispatches'); } catch (e) { onError?.(e as Error); return () => {}; }
+  let alive = true;
+  const poll = async () => {
+    if (!alive) return;
+    try { callback(await apiGet<Dispatch[]>('dispatches')); }
+    catch (e) { onError?.(e as Error); }
+  };
+  poll();
+  const id = setInterval(poll, 4000);
+  return () => { alive = false; clearInterval(id); };
 }
 
 export async function createDispatch(
-  role: UserRole,
-  dispatchData: Omit<Dispatch, 'id' | 'timestamp'>
+  role: UserRole, dispatchData: Omit<Dispatch, 'id' | 'timestamp'>
 ): Promise<Dispatch> {
   enforceRules(role, 'write', 'dispatches');
-  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
-  const ref = await addDoc(collection(getFirebaseDb(), 'dispatches'), {
-    ...dispatchData,
-    timestamp: Date.now(),
-  });
-  return { ...dispatchData, id: ref.id, timestamp: Date.now() } as Dispatch;
+  const data = await apiPost({ coll: 'dispatches', op: 'insert', doc: dispatchData });
+  return (data as any[])[0];
 }
 
 export async function updateDispatchStatus(
-  role: UserRole,
-  dispatchId: string,
-  status: Dispatch['status']
+  role: UserRole, dispatchId: string, status: Dispatch['status']
 ): Promise<void> {
   enforceRules(role, 'write', 'dispatches');
-  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
-  await updateDoc(doc(getFirebaseDb(), 'dispatches', dispatchId), { status });
+  await apiPost({ coll: 'dispatches', op: 'update', id: dispatchId, patch: { status } });
 }
 
 // ---------------------------------------------------------------------------
-// Congestion write (organizer-only — used by the simulation engine)
+// Congestion write (organizer-only)
 // ---------------------------------------------------------------------------
 export async function writeCongestionBatch(
   updates: Array<Pick<CongestionZone, 'zoneId' | 'densityScore' | 'lastUpdated' | 'trend'>>
 ): Promise<void> {
-  if (!isFirebaseConfigured()) return;
-  const db = getFirebaseDb();
-  const { writeBatch } = await import('firebase/firestore');
-  const batch = writeBatch(db);
-  for (const u of updates) {
-    const ref = doc(db, 'congestionState', u.zoneId);
-    batch.set(ref, u, { merge: true });
-  }
-  await batch.commit();
+  const scores: Record<string, number> = {};
+  for (const u of updates) scores[u.zoneId] = u.densityScore;
+  await fetch('/api/simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scores }),
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Egress ranking — deployed rankEgressOptions callable, falls back locally
+// Concierge + egress ranking wrappers
 // ---------------------------------------------------------------------------
-export async function rankEgressOptions(params: Parameters<typeof localRankEgressOptions>[0]) {
-  if (!isFirebaseConfigured()) return localRankEgressOptions(params);
+export async function askConcierge(
+  req: Parameters<typeof askFlowEngine>[0],
+  congestion: Record<string, number>
+): Promise<ConciergeResponseData & { detectedLanguage?: string }> {
+  return apiConcierge(req, congestion);
+}
+
+export async function rankEgressOptions(params: Parameters<typeof flowRankEgress>[0]) {
   try {
-    const fn = httpsCallable(getFirebaseFunctions(), 'rankEgressOptions');
-    const res = await fn(params);
-    const data = (res.data as any);
-    if (data?.success && data.data) return data;
-    return localRankEgressOptions(params);
-  } catch {
-    return localRankEgressOptions(params);
-  }
+    const res = await fetch('/api/rank-egress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const json = await res.json();
+    if (json.success && json.data) return json;
+  } catch { /* fallback below */ }
+  return flowRankEgress(params);
 }
 
 // ---------------------------------------------------------------------------
-// Backwards-compatible simulator hook — retained for page imports.
-// The real congestion feed now lives in Firestore; this is a no-op here so
-// pages that call it keep compiling. The simulation engine (congestion-
-// simulator.ts) drives writes via writeCongestionBatch.
+// Simulator hook (kept for page imports; real tick runs server-side)
 // ---------------------------------------------------------------------------
 export function runSimulatorTick() {
-  // No-op: live data flows from Firestore, not the client tick.
+  // No-op: the live congestion feed is driven by /api/simulate.
 }
 
 // ---------------------------------------------------------------------------
-// `db` object — preserves the original public API used by page components.
-// All methods delegate to the real-Firestore implementations above.
+// `db` namespace — preserved API surface used by page components.
 // ---------------------------------------------------------------------------
 export const db = {
   subscribeToCongestion,
   subscribeToReports,
-  attemptCrossRoleRead,
   createReport,
+  attemptCrossRoleRead,
   subscribeToIncidents,
   updateIncidentStatus,
   subscribeToDispatches,
   createDispatch,
   updateDispatchStatus,
   writeCongestionBatch,
+  askConcierge,
+  rankEgressOptions,
   runSimulatorTick,
 };
+

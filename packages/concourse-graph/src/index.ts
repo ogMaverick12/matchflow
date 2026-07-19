@@ -286,7 +286,7 @@ export function findShortestPath(
     }
   }
 
-  if (dist[toNodeId] === Infinity) {
+  if (dist[toNodeId] === Infinity || dist[toNodeId] === undefined) {
     // §9: Never silently fall back to a non-accessible route.
     return { error: mobilityAccessible ? 'NO_ACCESSIBLE_PATH' : 'UNREACHABLE' };
   }
@@ -294,7 +294,7 @@ export function findShortestPath(
   // Reconstruct path
   const path: string[] = [];
   let curr: string | null = toNodeId;
-  while (curr !== null) {
+  while (curr != null) {
     path.unshift(curr);
     curr = prev[curr];
   }

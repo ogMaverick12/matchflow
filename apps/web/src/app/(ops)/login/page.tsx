@@ -1,18 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/context/SessionContext';
 import { Shield } from 'lucide-react';
-import { httpsCallable } from 'firebase/functions';
-import { getFirebaseFunctions, getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 
 type Role = 'fan' | 'volunteer' | 'staff' | 'organizer';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { session, setRole, authUser } = useSession();
-  const [busy, setBusy] = useState(false);
+  const { session, setRole } = useSession();
 
   const routeFor = (role: Role) => {
     if (role === 'volunteer') router.push('/volunteer');
@@ -23,29 +20,9 @@ export default function LoginPage() {
 
   const handleRoleSelect = async (role: Role) => {
     setRole(role);
-    if (role === 'fan') {
-      router.push('/home');
-      return;
-    }
-
-    // Ops roles: assign the role as a Firebase custom claim so Firestore
-    // security rules enforce RBAC server-side (§12). Fan needs no claim.
-    if (!isFirebaseConfigured() || !authUser) {
-      routeFor(role);
-      return;
-    }
-    setBusy(true);
-    try {
-      const fn = httpsCallable(getFirebaseFunctions(), 'setUserRole');
-      await fn({ role });
-      // Refresh the ID token so the new claim is visible to rules immediately
-      await authUser.getIdToken(true);
-    } catch {
-      // Claim may still apply on next token refresh; proceed regardless
-    } finally {
-      setBusy(false);
-      routeFor(role);
-    }
+    // RBAC is enforced client-side (db.ts) and reflected from the persisted
+    // session. Ops roles are granted immediately; fan returns to the surface.
+    routeFor(role);
   };
 
   return (
@@ -75,7 +52,6 @@ export default function LoginPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button
-            disabled={busy}
             onClick={() => handleRoleSelect('volunteer')}
             style={{
               padding: '14px',
@@ -97,7 +73,6 @@ export default function LoginPage() {
           </button>
 
           <button
-            disabled={busy}
             onClick={() => handleRoleSelect('staff')}
             style={{
               padding: '14px',
@@ -119,7 +94,6 @@ export default function LoginPage() {
           </button>
 
           <button
-            disabled={busy}
             onClick={() => handleRoleSelect('organizer')}
             style={{
               padding: '14px',
@@ -143,7 +117,6 @@ export default function LoginPage() {
           <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '12px 0' }}></div>
 
           <button
-            disabled={busy}
             onClick={() => handleRoleSelect('fan')}
             style={{
               padding: '12px',
